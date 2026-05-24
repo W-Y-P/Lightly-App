@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Region {
+  CN
+  GLOBAL
+}
+
+enum Sex {
+  male
+  female
+}
+
+enum MealSlot {
+  breakfast
+  lunch
+  dinner
+  other
+  drink
+}
+
+enum EntryStatus {
+  recorded
+  skipped
+  fasting
+}
+
+model User {
+  id          String    @id @default(cuid())
+  region      Region    @default(CN)
+  appleUserId String?   @unique
+  email       String?
+  birthYear   Int?
+  sex         Sex?
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  plans       Plan[]
+  meals       MealEntry[]
+  exercises   ExerciseEntry[]
+  weights     WeightEntry[]
+  summaries   DailySummary[]
+}
+
+model Plan {
+  id                     String   @id @default(cuid())
+  userId                 String
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentWeightKg        Float
+  targetWeightKg         Float
+  targetDate             DateTime?
+  weeklyLossKg           Float?
+  heightCm               Float
+  age                    Int
+  sex                    Sex
+  activityLevel          Float
+  bmrKcal                Int
+  tdeeKcal               Int
+  dailyDeficitTargetKcal Int
+  recommendedIntakeKcal  Int
+  proteinMinG            Int
+  proteinMaxG            Int
+  carbMinG               Int
+  carbMaxG               Int
+  fatMinG                Int
+  fatMaxG                Int
+  activeFrom             DateTime @default(now())
+  activeTo               DateTime?
+  createdAt              DateTime @default(now())
+}
+
+model MealEntry {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime
+  mealSlot    MealSlot
+  status      EntryStatus
+  source      String
+  totalKcal   Int
+  carbG       Int
+  proteinG    Int
+  fatG        Int
+  confirmedAt DateTime?
+  createdAt   DateTime    @default(now())
+
+  items       MealItem[]
+}
+
+model MealItem {
+  id            String    @id @default(cuid())
+  mealEntryId   String
+  mealEntry     MealEntry @relation(fields: [mealEntryId], references: [id], onDelete: Cascade)
+  foodName      String
+  quantityG     Float
+  kcal          Int
+  carbG         Int
+  proteinG      Int
+  fatG          Int
+  confidence    Float?
+  isAiEstimated Boolean   @default(false)
+}
+
+model ExerciseEntry {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime
+  exerciseType  String
+  durationMin   Int
+  met           Float?
+  rawKcal       Int
+  source        String
+  confirmedKcal Int
+  createdAt     DateTime @default(now())
+}
+
+model WeightEntry {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            DateTime
+  weightKg        Float
+  weighingContext String
+  source          String
+  createdAt       DateTime @default(now())
+}
+
+model DailySummary {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date              DateTime
+  intakeKcal        Int
+  exerciseKcal      Int
+  actualDeficitKcal Int
+  targetDeficitKcal Int
+  recordedMealSlots Int
+  isRecordComplete  Boolean
+  starAwarded       Boolean
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, date])
+}
