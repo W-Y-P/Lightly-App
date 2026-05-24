@@ -1,8 +1,11 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Scale, Camera } from 'lucide-react-native';
+import { mockTodayData } from '../mockTodayData';
 
 export default function QuickActionCards() {
+  const { currentWeight, weightUnit } = mockTodayData;
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
@@ -13,10 +16,12 @@ export default function QuickActionCards() {
         <View style={[styles.iconCircle, { backgroundColor: '#E8F5E9' }]}>
           <Scale size={24} color="#4CAF50" />
         </View>
-        <Text style={styles.title}>体重打卡</Text>
-        <Text style={styles.subtitle}>记录今日体重</Text>
-        <View style={styles.button}>
-          <Text style={styles.buttonText}>去打卡</Text>
+        <Text style={styles.title}>今日体重</Text>
+        <Text style={styles.weightValue}>
+          {currentWeight} <Text style={styles.weightUnit}>{weightUnit}</Text>
+        </Text>
+        <View style={[styles.button, { backgroundColor: '#E8F5E9' }]}>
+          <Text style={[styles.buttonText, { color: '#4CAF50' }]}>去打卡</Text>
         </View>
       </TouchableOpacity>
 
@@ -29,7 +34,7 @@ export default function QuickActionCards() {
           <Camera size={24} color="#2196F3" />
         </View>
         <Text style={styles.title}>AI 拍照识别</Text>
-        <Text style={styles.subtitle}>拍照记录食物</Text>
+        <Text style={styles.subtitle}>拍照识别食物热量，更快更准记录</Text>
         <View style={[styles.button, { backgroundColor: '#E3F2FD' }]}>
           <Text style={[styles.buttonText, { color: '#2196F3' }]}>去记录</Text>
         </View>
@@ -53,9 +58,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   iconCircle: {
     width: 48,
@@ -70,14 +75,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  weightValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2E7D32',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  weightUnit: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#888',
+  },
   subtitle: {
     fontSize: 12,
     color: '#999',
     marginTop: 4,
     marginBottom: 12,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   button: {
-    backgroundColor: '#E8F5E9',
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
@@ -85,6 +103,5 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#4CAF50',
   },
 });

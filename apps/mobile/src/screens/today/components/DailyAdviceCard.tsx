@@ -5,12 +5,12 @@ import { mockTodayData } from '../mockTodayData';
 
 export default function DailyAdviceCard() {
   return (
-    <View style={styles.container}>
+    <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.iconCircle}>
           <Sparkles size={20} color="#4CAF50" />
         </View>
-        <Text style={styles.title}>今日总结与建议</Text>
+        <Text style={styles.title}>今日总结</Text>
       </View>
       <Text style={styles.text}>{mockTodayData.advice}</Text>
     </View>
@@ -18,7 +18,7 @@ export default function DailyAdviceCard() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     backgroundColor: '#fff',
     marginHorizontal: 16,
     marginTop: 12,
@@ -26,9 +26,9 @@ const styles = StyleSheet.create({
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   header: {
     flexDirection: 'row',

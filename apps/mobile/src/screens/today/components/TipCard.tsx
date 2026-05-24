@@ -1,42 +1,50 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Lightbulb } from 'lucide-react-native';
+import { HeartHandshake } from 'lucide-react-native';
 import { mockTodayData } from '../mockTodayData';
 
 export default function TipCard() {
   return (
-    <View style={styles.container}>
-      <View style={styles.iconContainer}>
-        <Lightbulb size={20} color="#FFC107" />
+    <View style={styles.card}>
+      <View style={styles.left}>
+        <View style={styles.iconCircle}>
+          <HeartHandshake size={22} color="#FF8A65" />
+        </View>
       </View>
-      <Text style={styles.text}>{mockTodayData.tip}</Text>
+      <View style={styles.content}>
+        <Text style={styles.text}>{mockTodayData.tip}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     flexDirection: 'row',
-    backgroundColor: '#FFFDE7',
+    backgroundColor: '#FFF3E0',
     marginHorizontal: 16,
     marginTop: 12,
     borderRadius: 16,
     padding: 16,
     alignItems: 'flex-start',
   },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFF9C4',
-    justifyContent: 'center',
-    alignItems: 'center',
+  left: {
     marginRight: 12,
   },
-  text: {
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,138,101,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
     flex: 1,
+  },
+  text: {
     fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+    color: '#795548',
+    lineHeight: 22,
   },
 });

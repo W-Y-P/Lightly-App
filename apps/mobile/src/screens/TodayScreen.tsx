@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import HeaderSection from './today/components/HeaderSection';
@@ -16,12 +16,15 @@ import QuickActionCards from './today/components/QuickActionCards';
 import DailyAdviceCard from './today/components/DailyAdviceCard';
 import BottomTabBar from './today/components/BottomTabBar';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const IS_LARGE_SCREEN = SCREEN_WIDTH >= 390; // iPhone 15/16
+
 export default function TodayScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient
         colors={['#E8F5E9', '#F1F8E9', '#FFFFFF']}
-        locations={[0, 0.3, 0.6]}
+        locations={[0, 0.25, 0.55]}
         style={styles.gradient}
       >
         <ScrollView
@@ -29,18 +32,52 @@ export default function TodayScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Header */}
           <HeaderSection />
+
+          {/* Calorie main card */}
           <CalorieBalanceCard />
+
+          {/* Metric bar below calorie card */}
           <MetricRow />
+
+          {/* Five meal quick cards */}
           <MealQuickCards />
-          <ExerciseCard />
-          <StarRewardCard />
-          <WeightTrendCard />
+
+          {/* Exercise (left big) + Star/Weight (right stack) */}
+          {IS_LARGE_SCREEN ? (
+            <View style={styles.exerciseRow}>
+              <View style={styles.exerciseLeft}>
+                <ExerciseCard />
+              </View>
+              <View style={styles.rightStack}>
+                <StarRewardCard />
+                <WeightTrendCard />
+              </View>
+            </View>
+          ) : (
+            <>
+              <ExerciseCard />
+              <StarRewardCard />
+              <WeightTrendCard />
+            </>
+          )}
+
+          {/* Tip card */}
           <TipCard />
+
+          {/* Macro nutrients overview */}
           <MacroSummaryCard />
+
+          {/* Meal timeline */}
           <MealTimelineCard />
+
+          {/* Quick actions */}
           <QuickActionCards />
+
+          {/* Daily advice */}
           <DailyAdviceCard />
+
           <View style={styles.bottomSpacer} />
         </ScrollView>
       </LinearGradient>
@@ -62,6 +99,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 100,
+  },
+  exerciseRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginTop: 12,
+    gap: 12,
+  },
+  exerciseLeft: {
+    flex: 1.15,
+  },
+  rightStack: {
+    flex: 0.85,
+    gap: 12,
   },
   bottomSpacer: {
     height: 24,

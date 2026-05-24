@@ -84,7 +84,7 @@ export const mockTodayData = {
       meal: '早餐',
       emoji: '🌅',
       calories: 286,
-      items: ['全麦面包 2片', '鸡蛋 1个', '牛奶 200ml'],
+      items: ['燕麦粥', '鸡蛋', '牛奶'],
     },
     {
       id: '2',
@@ -92,15 +92,15 @@ export const mockTodayData = {
       meal: '午餐',
       emoji: '☀️',
       calories: 412,
-      items: ['糙米饭 150g', '清炒西兰花', '鸡胸肉 100g'],
+      items: ['米饭', '鸡胸肉', '西兰花'],
     },
     {
       id: '3',
       time: '15:30',
-      meal: '加餐',
-      emoji: '🍎',
-      calories: 85,
-      items: ['苹果 1个', '坚果 15g'],
+      meal: '饮品',
+      emoji: '🥤',
+      calories: 0,
+      items: ['柠檬水'],
     },
     {
       id: '4',
@@ -108,13 +108,14 @@ export const mockTodayData = {
       meal: '晚餐',
       emoji: '🌙',
       calories: 170,
-      items: ['蔬菜沙拉', '酸奶 100g'],
+      items: ['紫薯', '清炒时蔬', '豆腐'],
     },
   ] as TimelineItem[],
 
-  // Tips
-  tip: '晚餐可以适量增加蛋白质摄入，有助于肌肉恢复和提高饱腹感。',
+  // Tips (warm, encouraging, avoid anxiety)
+  tip: '今日摄入略低于建议范围，注意适当加餐，保证能量，照顾好自己哦～',
 
   // Daily advice
-  advice: '今日饮食均衡，碳水和蛋白质摄入良好。建议适当增加运动量，帮助消耗多余热量。',
+  advice:
+    '今日能量摄入低于建议，运动消耗达标，继续保持！建议晚餐适当补充优质蛋白与蔬菜，帮助身体更好恢复。',
 };

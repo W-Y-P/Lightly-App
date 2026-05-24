@@ -6,39 +6,39 @@ export default function MacroSummaryCard() {
   const { nutrients } = mockTodayData;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>三大营养素</Text>
-      {nutrients.map((n) => {
-        const percent = Math.round((n.current / n.target) * 100);
-        return (
-          <View key={n.name} style={styles.row}>
-            <View style={styles.labelCol}>
-              <View style={[styles.dot, { backgroundColor: n.color }]} />
-              <Text style={styles.name}>{n.name}</Text>
-            </View>
-            <View style={styles.barCol}>
-              <View style={styles.barBg}>
+    <View style={styles.card}>
+      <Text style={styles.sectionTitle}>三大营养素概览</Text>
+      <View style={styles.row}>
+        {nutrients.map((n) => {
+          const percent = Math.round((n.current / n.target) * 100);
+          return (
+            <View key={n.name} style={styles.col}>
+              <Text style={styles.macroName}>{n.name}</Text>
+              <View style={styles.progressOuter}>
                 <View
                   style={[
-                    styles.barFill,
-                    { width: `${Math.min(percent, 100)}%`, backgroundColor: n.color },
+                    styles.progressInner,
+                    {
+                      width: `${Math.min(percent, 100)}%`,
+                      backgroundColor: n.color,
+                    },
                   ]}
                 />
               </View>
+              <Text style={styles.macroValue}>
+                {n.current}/{n.target}{n.unit}
+              </Text>
+              <Text style={[styles.macroPercent, { color: n.color }]}>{percent}%</Text>
             </View>
-            <Text style={styles.value}>
-              {n.current}/{n.target} {n.unit}
-            </Text>
-            <Text style={[styles.percent, { color: n.color }]}>{percent}%</Text>
-          </View>
-        );
-      })}
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     backgroundColor: '#fff',
     marginHorizontal: 16,
     marginTop: 12,
@@ -46,60 +46,49 @@ const styles = StyleSheet.create({
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#333',
     marginBottom: 14,
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
+    gap: 12,
   },
-  labelCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 90,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  name: {
-    fontSize: 13,
-    color: '#555',
-  },
-  barCol: {
+  col: {
     flex: 1,
-    marginHorizontal: 10,
+    alignItems: 'center',
   },
-  barBg: {
-    height: 8,
+  macroName: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 8,
+  },
+  progressOuter: {
+    width: '100%',
+    height: 6,
     backgroundColor: '#F0F0F0',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
+    marginBottom: 6,
   },
-  barFill: {
+  progressInner: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
-  value: {
+  macroValue: {
     fontSize: 12,
     color: '#666',
-    width: 70,
-    textAlign: 'right',
+    fontWeight: '500',
   },
-  percent: {
-    fontSize: 13,
-    fontWeight: '600',
-    width: 40,
-    textAlign: 'right',
+  macroPercent: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 2,
   },
 });
