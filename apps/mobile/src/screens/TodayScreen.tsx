@@ -61,9 +61,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 16,
+    paddingBottom: 100,
   },
   bottomSpacer: {
-    height: 20,
+    height: 24,
   },
 });

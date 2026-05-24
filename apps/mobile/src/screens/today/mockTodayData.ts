@@ -27,9 +27,7 @@ export interface TimelineItem {
 
 export const mockTodayData = {
   // Header
-  greeting: '早上好',
-  userName: '小明',
-  date: '2026年5月24日 星期日',
+  date: '5月18日 星期日',
 
   // Calorie balance
   remainingCalories: 632,
@@ -42,39 +40,34 @@ export const mockTodayData = {
 
   // Meals
   meals: [
-    { id: 'breakfast', name: '早餐', emoji: '🌅', calories: 286, recorded: true, time: '08:15' },
+    { id: 'breakfast', name: '早餐', emoji: '🌅', calories: 286, recorded: true, time: '07:30' },
     { id: 'lunch', name: '午餐', emoji: '☀️', calories: 412, recorded: true, time: '12:30' },
-    { id: 'dinner', name: '晚餐', emoji: '🌙', calories: 170, recorded: true, time: '18:45' },
+    { id: 'dinner', name: '晚餐', emoji: '🌙', calories: 170, recorded: true, time: '19:00' },
     { id: 'snack', name: '其它', emoji: '🍪', calories: 0, recorded: false },
     { id: 'drink', name: '饮品', emoji: '🥤', calories: 0, recorded: true },
   ] as MealRecord[],
 
   // Exercise
   exerciseCaloriesTotal: 210,
-  exerciseDuration: 45,
+  exerciseDuration: 35,
   exerciseType: '快走',
 
   // Star reward
   consecutiveDays: 6,
   totalStars: 42,
 
-  // Weight trend
+  // Weight trend (5/12 - 5/18)
   currentWeight: 72.6,
   weightUnit: 'kg',
   weightTrend: [
-    { date: '05/18', weight: 73.2 },
-    { date: '05/19', weight: 73.0 },
-    { date: '05/20', weight: 72.8 },
-    { date: '05/21', weight: 72.9 },
-    { date: '05/22', weight: 72.7 },
-    { date: '05/23', weight: 72.6 },
-    { date: '05/24', weight: 72.6 },
+    { date: '05/12', weight: 73.5 },
+    { date: '05/13', weight: 73.3 },
+    { date: '05/14', weight: 73.1 },
+    { date: '05/15', weight: 73.0 },
+    { date: '05/16', weight: 72.8 },
+    { date: '05/17', weight: 72.7 },
+    { date: '05/18', weight: 72.6 },
   ],
-
-  // Water intake
-  waterIntake: 1200,
-  waterTarget: 2000,
-  waterUnit: 'ml',
 
   // Nutrients
   nutrients: [
@@ -83,11 +76,11 @@ export const mockTodayData = {
     { name: '脂肪', current: 32, target: 50, unit: 'g', color: '#FF9800' },
   ] as NutrientProgress[],
 
-  // Timeline
+  // Timeline (07:30, 12:30, 15:30, 19:00)
   timeline: [
     {
       id: '1',
-      time: '08:15',
+      time: '07:30',
       meal: '早餐',
       emoji: '🌅',
       calories: 286,
@@ -103,7 +96,15 @@ export const mockTodayData = {
     },
     {
       id: '3',
-      time: '18:45',
+      time: '15:30',
+      meal: '加餐',
+      emoji: '🍎',
+      calories: 85,
+      items: ['苹果 1个', '坚果 15g'],
+    },
+    {
+      id: '4',
+      time: '19:00',
       meal: '晚餐',
       emoji: '🌙',
       calories: 170,

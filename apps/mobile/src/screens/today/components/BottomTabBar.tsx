@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, UtensilsCrossed, Compass, User } from 'lucide-react-native';
+import { Home, PenLine, TrendingUp, CalendarCheck, User } from 'lucide-react-native';
 
 interface TabItem {
   key: string;
@@ -15,8 +15,9 @@ export default function BottomTabBar() {
 
   const tabs: TabItem[] = [
     { key: 'today', label: '今日', icon: Home, onPress: () => console.log('tab: today') },
-    { key: 'record', label: '记录', icon: UtensilsCrossed, onPress: () => console.log('tab: record') },
-    { key: 'discover', label: '发现', icon: Compass, onPress: () => console.log('tab: discover') },
+    { key: 'record', label: '记录', icon: PenLine, onPress: () => console.log('tab: record') },
+    { key: 'trend', label: '趋势', icon: TrendingUp, onPress: () => console.log('tab: trend') },
+    { key: 'plan', label: '计划', icon: CalendarCheck, onPress: () => console.log('tab: plan') },
     { key: 'profile', label: '我的', icon: User, onPress: () => console.log('tab: profile') },
   ];
 
