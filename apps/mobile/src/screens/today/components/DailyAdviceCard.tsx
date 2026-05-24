@@ -10,7 +10,7 @@ export default function DailyAdviceCard() {
         <View style={styles.iconCircle}>
           <Sparkles size={20} color="#4CAF50" />
         </View>
-        <Text style={styles.title}>今日总结</Text>
+        <Text style={styles.title}>今日总结与建议</Text>
       </View>
       <Text style={styles.text}>{mockTodayData.advice}</Text>
     </View>

@@ -16,7 +16,8 @@ export default function QuickActionCards() {
         <View style={[styles.iconCircle, { backgroundColor: '#E8F5E9' }]}>
           <Scale size={24} color="#4CAF50" />
         </View>
-        <Text style={styles.title}>今日体重</Text>
+        <Text style={styles.title}>体重打卡</Text>
+        <Text style={styles.subtitle}>今日体重</Text>
         <Text style={styles.weightValue}>
           {currentWeight} <Text style={styles.weightUnit}>{weightUnit}</Text>
         </Text>
