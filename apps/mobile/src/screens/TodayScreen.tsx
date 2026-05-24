@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, ScrollView, StyleSheet, Dimensions, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import HeaderSection from './today/components/HeaderSection';
@@ -14,12 +14,14 @@ import MacroSummaryCard from './today/components/MacroSummaryCard';
 import MealTimelineCard from './today/components/MealTimelineCard';
 import QuickActionCards from './today/components/QuickActionCards';
 import DailyAdviceCard from './today/components/DailyAdviceCard';
-import BottomTabBar from './today/components/BottomTabBar';
+import { useApp } from '../state/AppStateProvider';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const IS_LARGE_SCREEN = SCREEN_WIDTH >= 390; // iPhone 15/16
 
 export default function TodayScreen() {
+  const { isUsingMockData } = useApp();
+
   return (
     <View style={styles.root}>
       <LinearGradient
@@ -27,6 +29,11 @@ export default function TodayScreen() {
         locations={[0, 0.25, 0.55]}
         style={styles.gradient}
       >
+        {isUsingMockData && (
+          <View style={styles.demoBanner}>
+            <Text style={styles.demoText}>📱 本地演示数据 · 连接服务器后显示真实数据</Text>
+          </View>
+        )}
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -81,7 +88,6 @@ export default function TodayScreen() {
           <View style={styles.bottomSpacer} />
         </ScrollView>
       </LinearGradient>
-      <BottomTabBar />
     </View>
   );
 }
@@ -93,6 +99,19 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+  },
+  demoBanner: {
+    backgroundColor: '#FFF8E1',
+    paddingVertical: 6,
+    paddingHorizontal: 20,
+    marginTop: 4,
+    marginHorizontal: 16,
+    borderRadius: 8,
+  },
+  demoText: {
+    fontSize: 12,
+    color: '#795548',
+    textAlign: 'center',
   },
   scroll: {
     flex: 1,
