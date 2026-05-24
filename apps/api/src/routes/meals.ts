@@ -3,40 +3,70 @@ import { z } from "zod";
 import { prisma } from "../prisma.js";
 import { authGuard } from "../auth.js";
 
+// ── Shared item schema ───────────────────────────────────────────────
+
+const mealItemInput = z.object({
+  foodName: z.string().min(1),
+  quantityG: z.number().positive(),
+  kcal: z.number().int().min(0),
+  carbG: z.number().min(0),
+  proteinG: z.number().min(0),
+  fatG: z.number().min(0),
+  confidence: z.number().min(0).max(1).optional(),
+  isAiEstimated: z.boolean().default(false),
+});
+
+// ── Create schema: items required only when status is "recorded" ─────
+
 const createMealSchema = z.object({
   date: z.string(), // YYYY-MM-DD
   mealSlot: z.enum(["breakfast", "lunch", "dinner", "other", "drink"]),
   status: z.enum(["recorded", "skipped", "fasting"]).default("recorded"),
   source: z.string().default("manual"),
-  items: z.array(z.object({
-    foodName: z.string().min(1),
-    quantityG: z.number().positive(),
-    kcal: z.number().int().min(0),
-    carbG: z.number().min(0),
-    proteinG: z.number().min(0),
-    fatG: z.number().min(0),
-    confidence: z.number().min(0).max(1).optional(),
-    isAiEstimated: z.boolean().default(false),
-  })).min(1),
+  items: z.array(mealItemInput).optional(),
+}).superRefine((data, ctx) => {
+  if (data.status === "recorded") {
+    if (!data.items || data.items.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "recorded 状态至少需要一个 item",
+        path: ["items"],
+      });
+    }
+  }
 });
+
+// ── Update schema: flexible status + item transitions ────────────────
 
 const updateMealSchema = z.object({
   mealSlot: z.enum(["breakfast", "lunch", "dinner", "other", "drink"]).optional(),
   status: z.enum(["recorded", "skipped", "fasting"]).optional(),
-  items: z.array(z.object({
-    foodName: z.string().min(1),
-    quantityG: z.number().positive(),
-    kcal: z.number().int().min(0),
-    carbG: z.number().min(0),
-    proteinG: z.number().min(0),
-    fatG: z.number().min(0),
-    confidence: z.number().min(0).max(1).optional(),
-    isAiEstimated: z.boolean().default(false),
-  })).optional(),
+  items: z.array(mealItemInput).optional(),
+}).superRefine((data, ctx) => {
+  // If explicitly setting status to recorded AND providing items, items must be non-empty
+  if (data.status === "recorded" && data.items !== undefined && data.items.length < 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "recorded 状态至少需要一个 item",
+      path: ["items"],
+    });
+  }
 });
 
 function startOfDay(dateStr: string): Date {
   return new Date(dateStr + "T00:00:00.000Z");
+}
+
+function sumItemTotals(items: z.infer<typeof mealItemInput>[]) {
+  return items.reduce(
+    (acc, item) => ({
+      totalKcal: acc.totalKcal + item.kcal,
+      carbG: acc.carbG + item.carbG,
+      proteinG: acc.proteinG + item.proteinG,
+      fatG: acc.fatG + item.fatG,
+    }),
+    { totalKcal: 0, carbG: 0, proteinG: 0, fatG: 0 },
+  );
 }
 
 export async function mealRoutes(app: FastifyInstance) {
@@ -49,17 +79,10 @@ export async function mealRoutes(app: FastifyInstance) {
 
     const { items, ...mealData } = parsed.data;
 
-    // If status is skipped or fasting, items may be empty — but we enforced min(1)
-    // For skipped/fasting, total will be 0
-    const totals = items.reduce(
-      (acc, item) => ({
-        totalKcal: acc.totalKcal + item.kcal,
-        carbG: acc.carbG + item.carbG,
-        proteinG: acc.proteinG + item.proteinG,
-        fatG: acc.fatG + item.fatG,
-      }),
-      { totalKcal: 0, carbG: 0, proteinG: 0, fatG: 0 },
-    );
+    // skipped / fasting → no items, all macros zero
+    const isNonRecording = mealData.status === "skipped" || mealData.status === "fasting";
+    const effectiveItems = isNonRecording ? [] : (items ?? []);
+    const totals = isNonRecording ? { totalKcal: 0, carbG: 0, proteinG: 0, fatG: 0 } : sumItemTotals(effectiveItems);
 
     const meal = await prisma.mealEntry.create({
       data: {
@@ -68,13 +91,13 @@ export async function mealRoutes(app: FastifyInstance) {
         mealSlot: mealData.mealSlot,
         status: mealData.status,
         source: mealData.source,
-        totalKcal: mealData.status === "recorded" ? totals.totalKcal : 0,
-        carbG: mealData.status === "recorded" ? Math.round(totals.carbG) : 0,
-        proteinG: mealData.status === "recorded" ? Math.round(totals.proteinG) : 0,
-        fatG: mealData.status === "recorded" ? Math.round(totals.fatG) : 0,
+        totalKcal: totals.totalKcal,
+        carbG: Math.round(totals.carbG),
+        proteinG: Math.round(totals.proteinG),
+        fatG: Math.round(totals.fatG),
         confirmedAt: mealData.status === "recorded" ? new Date() : null,
         items: {
-          create: mealData.status === "recorded" ? items.map((item) => ({
+          create: effectiveItems.map((item) => ({
             foodName: item.foodName,
             quantityG: item.quantityG,
             kcal: item.kcal,
@@ -83,7 +106,7 @@ export async function mealRoutes(app: FastifyInstance) {
             fatG: Math.round(item.fatG),
             confidence: item.confidence ?? null,
             isAiEstimated: item.isAiEstimated,
-          })) : [],
+          })),
         },
       },
       include: { items: true },
@@ -134,29 +157,45 @@ export async function mealRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: "meal_not_found" });
     }
 
-    // If items are provided, replace them
-    if (parsed.data.items) {
-      await prisma.mealItem.deleteMany({ where: { mealEntryId: id } });
+    const newStatus = parsed.data.status ?? existing.status;
 
-      const totals = parsed.data.items.reduce(
-        (acc, item) => ({
-          totalKcal: acc.totalKcal + item.kcal,
-          carbG: acc.carbG + item.carbG,
-          proteinG: acc.proteinG + item.proteinG,
-          fatG: acc.fatG + item.fatG,
-        }),
-        { totalKcal: 0, carbG: 0, proteinG: 0, fatG: 0 },
-      );
+    // ── Transition to skipped / fasting: clear items and zero macros
+    if (newStatus === "skipped" || newStatus === "fasting") {
+      await prisma.mealItem.deleteMany({ where: { mealEntryId: id } });
 
       const meal = await prisma.mealEntry.update({
         where: { id },
         data: {
           mealSlot: parsed.data.mealSlot,
-          status: parsed.data.status,
+          status: newStatus,
+          totalKcal: 0,
+          carbG: 0,
+          proteinG: 0,
+          fatG: 0,
+          confirmedAt: null,
+        },
+        include: { items: true },
+      });
+
+      return { meal };
+    }
+
+    // ── Items explicitly provided: replace and recalc
+    if (parsed.data.items) {
+      await prisma.mealItem.deleteMany({ where: { mealEntryId: id } });
+
+      const totals = sumItemTotals(parsed.data.items);
+
+      const meal = await prisma.mealEntry.update({
+        where: { id },
+        data: {
+          mealSlot: parsed.data.mealSlot,
+          status: newStatus,
           totalKcal: totals.totalKcal,
           carbG: Math.round(totals.carbG),
           proteinG: Math.round(totals.proteinG),
           fatG: Math.round(totals.fatG),
+          confirmedAt: new Date(),
           items: {
             create: parsed.data.items.map((item) => ({
               foodName: item.foodName,
@@ -176,7 +215,7 @@ export async function mealRoutes(app: FastifyInstance) {
       return { meal };
     }
 
-    // Simple field update without items
+    // ── Simple field update (e.g. only mealSlot changed) — preserve existing data
     const meal = await prisma.mealEntry.update({
       where: { id },
       data: {

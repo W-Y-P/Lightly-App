@@ -280,10 +280,13 @@ function sumItems(items: AiFoodEstimate[]) {
   };
 }
 
-/** Create adapter based on env config */
+/** Create adapter based on env config.
+ *  Default: real OpenAI-compatible adapter (throws AiNotConfiguredError if no key).
+ *  Set AI_ADAPTER=mock to use MockAiAdapter (for testing / demos).
+ */
 export function createAiAdapter(): AiAdapter {
-  if (process.env.AI_API_KEY) {
-    return new OpenAiAdapter();
+  if (process.env.AI_ADAPTER === "mock") {
+    return new MockAiAdapter();
   }
-  return new MockAiAdapter();
+  return new OpenAiAdapter();
 }

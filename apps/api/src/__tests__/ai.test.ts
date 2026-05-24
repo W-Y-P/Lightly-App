@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MockAiAdapter, createAiAdapter, AiNotConfiguredError, OpenAiAdapter } from "../ai.js";
 
 describe("MockAiAdapter", () => {
@@ -42,13 +42,44 @@ describe("MockAiAdapter", () => {
 });
 
 describe("createAiAdapter", () => {
-  it("returns MockAiAdapter when AI_API_KEY is not set", () => {
-    const originalKey = process.env.AI_API_KEY;
-    delete process.env.AI_API_KEY;
+  let savedEnv: Record<string, string | undefined>;
 
+  beforeEach(() => {
+    savedEnv = {
+      AI_ADAPTER: process.env.AI_ADAPTER,
+      AI_API_KEY: process.env.AI_API_KEY,
+    };
+  });
+
+  afterEach(() => {
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  it("returns MockAiAdapter when AI_ADAPTER=mock", () => {
+    process.env.AI_ADAPTER = "mock";
     const adapter = createAiAdapter();
     expect(adapter).toBeInstanceOf(MockAiAdapter);
+  });
 
-    process.env.AI_API_KEY = originalKey;
+  it("returns MockAiAdapter when AI_ADAPTER=mock even if AI_API_KEY is set", () => {
+    process.env.AI_ADAPTER = "mock";
+    process.env.AI_API_KEY = "sk-some-key";
+    const adapter = createAiAdapter();
+    expect(adapter).toBeInstanceOf(MockAiAdapter);
+  });
+
+  it("throws AiNotConfiguredError when AI_ADAPTER is not mock and AI_API_KEY is empty", () => {
+    delete process.env.AI_ADAPTER;
+    process.env.AI_API_KEY = "";
+    expect(() => createAiAdapter()).toThrow(AiNotConfiguredError);
+  });
+
+  it("throws AiNotConfiguredError when AI_ADAPTER is not mock and AI_API_KEY is missing", () => {
+    delete process.env.AI_ADAPTER;
+    delete process.env.AI_API_KEY;
+    expect(() => createAiAdapter()).toThrow(AiNotConfiguredError);
   });
 });
