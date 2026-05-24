@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Fat Loss App",
+    "slug": "fat-loss-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#E8F5E9"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.fatloss.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E8F5E9"
+      },
+      "package": "com.fatloss.app"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
