@@ -31,21 +31,28 @@ enum EntryStatus {
   fasting
 }
 
+enum SubscriptionTier {
+  free
+  vip
+}
+
 model User {
-  id          String    @id @default(cuid())
-  region      Region    @default(CN)
-  appleUserId String?   @unique
-  email       String?
-  birthYear   Int?
-  sex         Sex?
-  createdAt   DateTime  @default(now())
-  deletedAt   DateTime?
+  id               String           @id @default(cuid())
+  region           Region           @default(CN)
+  appleUserId      String?          @unique
+  email            String?
+  birthYear        Int?
+  sex              Sex?
+  subscriptionTier SubscriptionTier @default(free)
+  createdAt        DateTime         @default(now())
+  deletedAt        DateTime?
 
   plans       Plan[]
   meals       MealEntry[]
   exercises   ExerciseEntry[]
   weights     WeightEntry[]
   summaries   DailySummary[]
+  aiUsageLogs AiUsageLog[]
 }
 
 model Plan {
@@ -148,4 +155,15 @@ model DailySummary {
   updatedAt         DateTime @updatedAt
 
   @@unique([userId, date])
+}
+
+model AiUsageLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  type      String   @default("photo")
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
 }

@@ -14,11 +14,13 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.60.4",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@rollup/wasm-node": "^4.60.4",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
