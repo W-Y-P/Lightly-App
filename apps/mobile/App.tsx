@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { registerRootComponent } from 'expo';
 import AppStateProvider, { useApp } from './src/state/AppStateProvider';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import TodayScreen from './src/screens/TodayScreen';
@@ -57,7 +58,7 @@ function MainShell() {
 
 // ── Root ──────────────────────────────────────────────────────────
 
-export default function App() {
+function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
@@ -67,6 +68,9 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+export default App;
+registerRootComponent(App);
 
 const styles = StyleSheet.create({
   shell: {
