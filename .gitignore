@@ -6,3 +6,7 @@ dist
 *.log
 *.tsbuildinfo
 artifacts
+apps/miniprogram/dist
+apps/miniprogram/node_modules
+apps/miniprogram/.taro
+apps/miniprogram/.swc

@@ -1,0 +1,92 @@
+.weight-card {
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.weight-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.weight-icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #F3E5F5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+}
+
+.weight-icon {
+  font-size: 32px;
+}
+
+.weight-title {
+  font-size: 30px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.weight-current {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 20px;
+}
+
+.weight-current-value {
+  font-size: 44px;
+  font-weight: 700;
+  color: #2E7D32;
+}
+
+.weight-current-unit {
+  font-size: 24px;
+  color: #888888;
+  margin-left: 8px;
+}
+
+.weight-bars {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 100px;
+  padding: 0 8px;
+}
+
+.weight-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.weight-bar {
+  width: 16px;
+  background: linear-gradient(to top, #4CAF50, #81C784);
+  border-radius: 8px 8px 0 0;
+}
+
+.weight-bar-date {
+  font-size: 18px;
+  color: #999999;
+  margin-top: 8px;
+}
+
+.weight-checkin-btn {
+  margin-top: 20px;
+  background: #F3E5F5;
+  padding: 14px 0;
+  border-radius: 24px;
+  text-align: center;
+}
+
+.weight-checkin-text {
+  font-size: 26px;
+  color: #9C27B0;
+  font-weight: 600;
+}

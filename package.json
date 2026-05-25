@@ -4,17 +4,23 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "apps/api"
+    "apps/api",
+    "apps/miniprogram"
   ],
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "dev:api": "npm run dev -w apps/api",
+    "dev:miniprogram": "npm run dev:weapp -w apps/miniprogram",
     "build": "tsc --noEmit && vite build",
     "build:api": "npm run build -w apps/api",
-    "preview": "vite preview --host 0.0.0.0"
+    "build:miniprogram": "npm run build:weapp -w apps/miniprogram",
+    "preview": "vite preview --host 0.0.0.0",
+    "build:miniprogram:node20": "cd apps/miniprogram && npx -p node@20 node ../../node_modules/.bin/taro build --type weapp"
   },
   "dependencies": {
     "@rollup/rollup-darwin-arm64": "^4.60.4",
+    "@swc/core": "^1.3.96",
+    "@swc/core-darwin-arm64": "^1.3.96",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

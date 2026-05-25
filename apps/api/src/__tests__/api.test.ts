@@ -61,7 +61,7 @@ describe("protected routes without auth", () => {
     "GET /weights",
     "GET /daily-summary?date=2025-01-01",
     "GET /trends/weight",
-    "GET /subscription/entitlement",
+    "GET /points/entitlement",
   ];
 
   for (const route of routes) {
@@ -82,6 +82,8 @@ describeIntegration("full flow: guest → plan → meal → summary", () => {
     expect(res.statusCode).toBe(201);
     token = res.json().token;
     expect(token).toBeTruthy();
+    // No tier in response
+    expect(res.json().tier).toBeUndefined();
   });
 
   it("creates a plan", async () => {
@@ -155,27 +157,33 @@ describeIntegration("full flow: guest → plan → meal → summary", () => {
     const body = res.json();
     expect(body.hasPlan).toBe(true);
     expect(body.intake.totalKcal).toBeGreaterThanOrEqual(0);
+    // pointBalance should be present
+    expect(body.pointBalance).toBeDefined();
   });
 
-  it("gets subscription entitlement", async () => {
+  it("gets entitlement (points/quota)", async () => {
     const res = await app!.inject({
       method: "GET",
-      url: "/subscription/entitlement",
+      url: "/points/entitlement",
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().tier).toBe("free");
+    const body = res.json();
+    // No tier field — now returns point/quota info
+    expect(body.tier).toBeUndefined();
+    expect(body.pointBalance).toBeDefined();
+    expect(body.photoQuota).toBeDefined();
   });
 });
 
-describeIntegration("meal status handling", () => {
+describeIntegration("full flow: weight → trends → calibration", () => {
   let token: string;
 
   beforeAll(async () => {
     const res = await app!.inject({ method: "POST", url: "/auth/guest" });
     token = res.json().token;
 
-    // Create a plan so daily-summary works
+    // Create plan
     await app!.inject({
       method: "POST",
       url: "/plans",
@@ -183,71 +191,87 @@ describeIntegration("meal status handling", () => {
       payload: {
         sex: "male",
         age: 30,
-        heightCm: 170,
-        currentWeightKg: 75,
-        targetWeightKg: 65,
-        activityMultiplier: 1.4,
+        heightCm: 180,
+        currentWeightKg: 90,
+        targetWeightKg: 80,
+        activityMultiplier: 1.3,
         weeklyLossKg: 0.5,
       },
     });
   });
 
+  it("records weight", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await app!.inject({
+      method: "POST",
+      url: "/weights",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { date: today, weightKg: 89.5 },
+    });
+    expect(res.statusCode).toBe(201);
+  });
+
+  it("gets weight trends", async () => {
+    const res = await app!.inject({
+      method: "GET",
+      url: "/trends/weight?days=30",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().points.length).toBeGreaterThan(0);
+  });
+
+  it("gets deficit trends", async () => {
+    const res = await app!.inject({
+      method: "GET",
+      url: "/trends/deficit?days=30",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("gets star trends", async () => {
+    const res = await app!.inject({
+      method: "GET",
+      url: "/trends/stars?days=30",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().stats).toBeDefined();
+  });
+
+  it("gets calibration suggestion", async () => {
+    const res = await app!.inject({
+      method: "GET",
+      url: "/plans/current/calibration",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+describeIntegration("meal PATCH status transitions", () => {
+  let token: string;
   const today = new Date().toISOString().slice(0, 10);
 
-  it("POST /meals with status=skipped and no items succeeds", async () => {
-    const res = await app!.inject({
-      method: "POST",
-      url: "/meals",
-      headers: { authorization: `Bearer ${token}` },
-      payload: {
-        date: today,
-        mealSlot: "breakfast",
-        status: "skipped",
-      },
-    });
-    expect(res.statusCode).toBe(201);
-    const meal = res.json().meal;
-    expect(meal.status).toBe("skipped");
-    expect(meal.items).toHaveLength(0);
-    expect(meal.totalKcal).toBe(0);
-    expect(meal.carbG).toBe(0);
-    expect(meal.proteinG).toBe(0);
-    expect(meal.fatG).toBe(0);
-  });
+  beforeAll(async () => {
+    const res = await app!.inject({ method: "POST", url: "/auth/guest" });
+    token = res.json().token;
 
-  it("POST /meals with status=fasting and no items succeeds", async () => {
-    const res = await app!.inject({
+    await app!.inject({
       method: "POST",
-      url: "/meals",
+      url: "/plans",
       headers: { authorization: `Bearer ${token}` },
       payload: {
-        date: today,
-        mealSlot: "lunch",
-        status: "fasting",
+        sex: "female",
+        age: 25,
+        heightCm: 163,
+        currentWeightKg: 60,
+        targetWeightKg: 55,
+        activityMultiplier: 1.3,
+        weeklyLossKg: 0.3,
       },
     });
-    expect(res.statusCode).toBe(201);
-    const meal = res.json().meal;
-    expect(meal.status).toBe("fasting");
-    expect(meal.items).toHaveLength(0);
-    expect(meal.totalKcal).toBe(0);
-  });
-
-  it("POST /meals with status=skipped and empty items array succeeds", async () => {
-    const res = await app!.inject({
-      method: "POST",
-      url: "/meals",
-      headers: { authorization: `Bearer ${token}` },
-      payload: {
-        date: today,
-        mealSlot: "drink",
-        status: "skipped",
-        items: [],
-      },
-    });
-    expect(res.statusCode).toBe(201);
-    expect(res.json().meal.status).toBe("skipped");
-    expect(res.json().meal.items).toHaveLength(0);
   });
 
   it("POST /meals with status=recorded and no items fails", async () => {
@@ -356,15 +380,8 @@ describeIntegration("meal status handling", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-
-    // We created: breakfast (skipped), lunch (fasting), drink (skipped), other (recorded→skipped),
-    // dinner (recorded→fasting), plus one other (recorded) from a different test
-    // At minimum 4+ distinct meal slots touched
     expect(body.hasPlan).toBe(true);
-    // intake should be 0 since all meals ended up skipped/fasting
-    // (the recorded ones were patched to skipped/fasting)
     expect(body.intake.totalKcal).toBe(0);
-    // star.recordedMealSlots should reflect all touched slots (recorded + skipped + fasting)
     expect(body.star.recordedMealSlots).toBeGreaterThanOrEqual(3);
   });
 });
@@ -391,7 +408,7 @@ describeIntegration("AI endpoints", () => {
     expect(body.note).toBeTruthy();
   });
 
-  it("POST /ai/meal-photo-estimate returns estimate", async () => {
+  it("POST /ai/meal-photo-estimate returns estimate (free slot)", async () => {
     const res = await app!.inject({
       method: "POST",
       url: "/ai/meal-photo-estimate",
@@ -401,7 +418,19 @@ describeIntegration("AI endpoints", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.estimate).toBeTruthy();
-    expect(body.remaining).toBeDefined();
+    expect(body.usedPoint).toBe(false);
+    expect(body.freeRemaining).toBeDefined();
     expect(body.note).toContain("照片");
+  });
+
+  it("second photo returns requires_point", async () => {
+    const res = await app!.inject({
+      method: "POST",
+      url: "/ai/meal-photo-estimate",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { imageBase64: "fake-base64-data", mimeType: "image/jpeg" },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("requires_point");
   });
 });

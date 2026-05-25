@@ -1,0 +1,40 @@
+.advice-card {
+  margin: 16px 32px 0;
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.advice-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.advice-icon-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #E8F5E9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+}
+
+.advice-icon {
+  font-size: 32px;
+}
+
+.advice-title {
+  font-size: 30px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.advice-text {
+  font-size: 26px;
+  color: #666666;
+  line-height: 1.7;
+}

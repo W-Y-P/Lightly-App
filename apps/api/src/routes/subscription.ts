@@ -1,28 +1,50 @@
+/**
+ * @deprecated This module is kept ONLY for backward compatibility.
+ * The canonical endpoint is now GET /points/entitlement in routes/points.ts.
+ * Remove this file once all callers have migrated.
+ */
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../prisma.js";
 import { authGuard } from "../auth.js";
 
-export async function subscriptionRoutes(app: FastifyInstance) {
-  app.get("/subscription/entitlement", { preHandler: [authGuard] }, async (request) => {
-    const user = await prisma.user.findUnique({ where: { id: request.userId! } });
-    if (!user) {
-      return { tier: "free", limits: getLimits("free") };
-    }
-
-    return {
-      tier: user.subscriptionTier,
-      limits: getLimits(user.subscriptionTier),
-    };
-  });
+function startOfDay(dateStr: string): Date {
+  return new Date(dateStr + "T00:00:00.000Z");
 }
 
-function getLimits(tier: string) {
-  const freePhoto = Number(process.env.FREE_PHOTO_ESTIMATES_PER_DAY ?? 2);
-  const vipPhoto = Number(process.env.VIP_PHOTO_ESTIMATES_PER_DAY ?? 10);
+const FREE_PHOTO_PER_DAY = 1;
 
-  return {
-    photoEstimatesPerDay: tier === "vip" ? vipPhoto : freePhoto,
-    textEstimatesPerDay: Infinity,
-    manualEntryUnlimited: true,
-  };
+/** @deprecated Use GET /points/entitlement instead. */
+export async function subscriptionRoutes(app: FastifyInstance) {
+  /**
+   * @deprecated Use GET /points/entitlement instead.
+   * Kept temporarily for backward compatibility with existing callers.
+   * Will be removed in a future release.
+   */
+  app.get("/subscription/entitlement", { preHandler: [authGuard] }, async (request) => {
+    const userId = request.userId!;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return {
+        pointBalance: 0,
+        photoQuota: { freeRemaining: FREE_PHOTO_PER_DAY, freeUsed: 0, totalToday: 0 },
+      };
+    }
+
+    const today = startOfDay(new Date().toISOString().slice(0, 10));
+    const freeUsed = await prisma.aiUsageLog.count({
+      where: { userId, date: today, type: "photo", source: "free" },
+    });
+    const pointUsed = await prisma.aiUsageLog.count({
+      where: { userId, date: today, type: "photo", source: "point" },
+    });
+
+    return {
+      pointBalance: user.pointBalance,
+      photoQuota: {
+        freeRemaining: Math.max(0, FREE_PHOTO_PER_DAY - freeUsed),
+        freeUsed,
+        totalToday: freeUsed + pointUsed,
+      },
+    };
+  });
 }

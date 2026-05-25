@@ -31,28 +31,26 @@ enum EntryStatus {
   fasting
 }
 
-enum SubscriptionTier {
-  free
-  vip
-}
-
 model User {
-  id               String           @id @default(cuid())
-  region           Region           @default(CN)
-  appleUserId      String?          @unique
-  email            String?
-  birthYear        Int?
-  sex              Sex?
-  subscriptionTier SubscriptionTier @default(free)
-  createdAt        DateTime         @default(now())
-  deletedAt        DateTime?
+  id              String    @id @default(cuid())
+  region          Region    @default(CN)
+  appleUserId     String?   @unique
+  wechatOpenId    String?   @unique
+  wechatUnionId   String?   @unique
+  email           String?
+  birthYear       Int?
+  sex             Sex?
+  pointBalance    Int       @default(0)
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
 
-  plans       Plan[]
-  meals       MealEntry[]
-  exercises   ExerciseEntry[]
-  weights     WeightEntry[]
-  summaries   DailySummary[]
-  aiUsageLogs AiUsageLog[]
+  plans              Plan[]
+  meals              MealEntry[]
+  exercises          ExerciseEntry[]
+  weights            WeightEntry[]
+  summaries          DailySummary[]
+  aiUsageLogs        AiUsageLog[]
+  pointTransactions  PointTransaction[]
 }
 
 model Plan {
@@ -163,7 +161,21 @@ model AiUsageLog {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   date      DateTime
   type      String   @default("photo")
+  source    String   @default("free")
   createdAt DateTime @default(now())
 
   @@index([userId, date])
+}
+
+model PointTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int
+  reason    String
+  refDate   String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, reason, refDate])
+  @@index([userId])
 }

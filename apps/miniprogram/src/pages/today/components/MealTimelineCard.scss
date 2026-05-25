@@ -1,0 +1,106 @@
+.timeline-card {
+  margin: 16px 32px 0;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.timeline-icon {
+  font-size: 28px;
+  margin-right: 12px;
+}
+
+.timeline-title {
+  font-size: 30px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.timeline-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-item {
+  display: flex;
+  min-height: 100px;
+}
+
+.timeline-dot-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 40px;
+  margin-right: 20px;
+}
+
+.timeline-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4CAF50;
+  flex-shrink: 0;
+}
+
+.timeline-line {
+  width: 4px;
+  flex: 1;
+  background: #E8F5E9;
+  margin-top: 4px;
+}
+
+.timeline-content {
+  flex: 1;
+  padding-bottom: 24px;
+}
+
+.timeline-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.timeline-emoji {
+  font-size: 28px;
+  margin-right: 8px;
+}
+
+.timeline-meal {
+  font-size: 26px;
+  font-weight: 600;
+  color: #333333;
+  margin-right: 12px;
+}
+
+.timeline-time {
+  font-size: 22px;
+  color: #999999;
+  margin-right: auto;
+}
+
+.timeline-kcal {
+  font-size: 24px;
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.timeline-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timeline-food {
+  font-size: 22px;
+  color: #666666;
+  background: #F5F5F5;
+  padding: 6px 16px;
+  border-radius: 12px;
+}

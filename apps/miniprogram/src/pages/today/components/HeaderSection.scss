@@ -1,0 +1,52 @@
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 24px 32px 32px;
+}
+
+.header-left {
+  flex: 1;
+}
+
+.header-title {
+  font-size: 56px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.header-date-row {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.header-date {
+  font-size: 28px;
+  color: #666666;
+}
+
+.header-chevron {
+  font-size: 24px;
+  color: #666666;
+  margin-left: 8px;
+}
+
+.header-calendar-btn {
+  display: flex;
+  align-items: center;
+  background-color: #4CAF50;
+  padding: 16px 28px;
+  border-radius: 40px;
+}
+
+.header-calendar-icon {
+  font-size: 28px;
+  margin-right: 10px;
+}
+
+.header-calendar-text {
+  font-size: 26px;
+  color: #ffffff;
+  font-weight: 600;
+}

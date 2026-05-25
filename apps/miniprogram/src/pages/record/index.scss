@@ -1,0 +1,178 @@
+.record-page {
+  min-height: 100vh;
+  background: #F8FDF8;
+}
+
+.record-scroll {
+  height: 100vh;
+}
+
+.record-calendar {
+  background: #ffffff;
+  padding: 20px 0;
+  border-bottom: 2px solid #F0F0F0;
+}
+
+.record-calendar-scroll {
+  white-space: nowrap;
+}
+
+.record-calendar-row {
+  display: inline-flex;
+  padding: 0 16px;
+  gap: 12px;
+}
+
+.record-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 16px;
+  min-width: 70px;
+}
+
+.record-day--active {
+  background: #E8F5E9;
+}
+
+.record-day-week {
+  font-size: 22px;
+  color: #999999;
+  margin-bottom: 4px;
+}
+
+.record-day-date {
+  font-size: 24px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.record-day-star {
+  font-size: 18px;
+  margin-top: 4px;
+}
+
+.record-day-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4CAF50;
+  margin-top: 4px;
+}
+
+.record-summary {
+  display: flex;
+  justify-content: space-around;
+  background: #ffffff;
+  margin: 20px 32px;
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.record-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.record-summary-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #2E7D32;
+}
+
+.record-summary-label {
+  font-size: 22px;
+  color: #999999;
+  margin-top: 4px;
+}
+
+.record-section {
+  margin: 20px 32px 0;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.record-section-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 20px;
+}
+
+.record-meal-grid {
+  display: flex;
+  gap: 16px;
+}
+
+.record-meal-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  background: #FAFAFA;
+  border-radius: 20px;
+}
+
+.record-meal-emoji {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+.record-meal-label {
+  font-size: 24px;
+  color: #333333;
+}
+
+.record-exercise-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.record-exercise-btn {
+  padding: 14px 28px;
+  background: #E3F2FD;
+  border-radius: 20px;
+}
+
+.record-exercise-label {
+  font-size: 24px;
+  color: #1976D2;
+}
+
+.record-weight-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #F3E5F5;
+  border-radius: 20px;
+  padding: 24px 28px;
+}
+
+.record-weight-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: #7B1FA2;
+}
+
+.record-weight-btn {
+  background: #CE93D8;
+  padding: 14px 28px;
+  border-radius: 20px;
+}
+
+.record-weight-btn-text {
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.record-bottom-spacer {
+  height: 160px;
+}

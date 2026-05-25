@@ -1,10 +1,10 @@
 # 自建后端技术架构教程
 
-这份教程解释“自建后端”到底怎么做。目标不是让你一次学完后端，而是让你知道每一块为什么存在、什么时候做、怎么验收。
+这份教程解释"自建后端"到底怎么做。目标不是让你一次学完后端，而是让你知道每一块为什么存在、什么时候做、怎么验收。
 
 ## 1. 总体原则
 
-首发中国区，未来国际化。因此采用区域隔离路线：
+首发微信小程序，未来国际化。因此采用区域隔离路线：
 
 - 中国区：`api-cn.example.com`
 - 海外区：未来部署 `api-global.example.com`
@@ -13,40 +13,39 @@
 
 首版推荐：
 
-- iOS 客户端：SwiftUI
+- 微信小程序客户端：原生小程序框架（或 Taro / uni-app 等跨端方案，视团队技术栈选择）
 - 后端 API：Node.js + TypeScript + Fastify
 - ORM：Prisma
 - 数据库：Postgres
 - 文件存储：对象存储，但餐食照片默认不长期保存
 - AI：后端模型网关，可切换不同模型供应商
-- 部署：中国大陆云服务器，准备 App 备案/ICP 路线
+- 部署：中国大陆云服务器，准备小程序备案和 ICP 路线
 
-## 2. 为什么 App 不能直接调 AI
+## 2. 为什么小程序不能直接调 AI
 
-不要让 iOS App 直接调用大模型 API，原因有四个：
+不要让小程序客户端直接调用大模型 API，原因有四个：
 
 1. API Key 会泄露。
-2. 无法统一控制免费/VIP 次数。
+2. 无法统一控制每日免费识别和积分兑换次数。
 3. 无法记录识别质量和错误。
 4. 无法替换模型供应商。
 
 正确流程：
 
 ```text
-iOS App -> 自建后端 -> AI 模型 / 食物库 -> 自建后端 -> iOS App
+小程序 -> 自建后端 -> AI 模型 / 食物库 -> 自建后端 -> 小程序
 ```
 
 ## 3. 系统模块
 
-### 3.1 iOS App
+### 3.1 微信小程序客户端
 
 负责：
 
-- SwiftUI 页面
-- 拍照、相册、相机权限
-- StoreKit 2 订阅
-- HealthKit 权限和同步
-- 本地缓存
+- 小程序页面和组件
+- 拍照、相册权限调用
+- 微信授权登录
+- 本地缓存（Storage）
 - 游客模式本地数据
 - 与后端 API 同步
 
@@ -62,7 +61,7 @@ iOS App -> 自建后端 -> AI 模型 / 食物库 -> 自建后端 -> iOS App
 - 趋势数据
 - 代谢校准
 - AI 识别入口
-- 订阅权益校验
+- 积分和识别额度管理
 - 账号删除
 
 ### 3.3 数据库
@@ -76,7 +75,7 @@ iOS App -> 自建后端 -> AI 模型 / 食物库 -> 自建后端 -> iOS App
 - 运动
 - 体重
 - 星星/达标日
-- 订阅权益
+- 积分
 - 校准建议
 
 不长期保存餐食照片。
@@ -95,16 +94,17 @@ iOS App -> 自建后端 -> AI 模型 / 食物库 -> 自建后端 -> iOS App
 
 ```text
 apps/
-  ios/                 # 正式 SwiftUI 工程
-  api/                 # Node.js 后端
-  demo/                # Web 交互原型，可选
+  miniprogram/       # 微信小程序客户端
+  api/               # Node.js 后端
+  demo/              # Web 交互原型，用于验证信息架构
 packages/
-  domain/              # 公式、类型、测试样例
-  nutrition-data/      # 食物库种子数据
+  domain/            # 公式、类型、测试样例（多端复用）
+  nutrition-data/    # 食物库种子数据
 docs/
   PRD.md
   TECH_ARCHITECTURE_TUTORIAL.md
   MVP_ROADMAP.md
+  MINIPROGRAM_LAUNCH_CHECKLIST.md
 ```
 
 当前仓库先用根目录 Vite demo 快速验证界面和公式。正式进入工程化后，可以迁移到上面的 monorepo 结构。
@@ -116,8 +116,9 @@ docs/
 ```text
 id
 region
-apple_user_id
-email
+wechat_open_id
+wechat_union_id
+nickname
 birth_year
 sex
 created_at
@@ -194,7 +195,7 @@ exercise_type
 duration_min
 met
 raw_kcal
-source          # manual/met/healthkit
+source          # manual/met
 confirmed_kcal
 created_at
 ```
@@ -207,7 +208,7 @@ user_id
 date
 weight_kg
 weighing_context # morning_empty/after_meal/evening/other
-source           # manual/healthkit
+source           # manual
 created_at
 ```
 
@@ -228,18 +229,28 @@ created_at
 updated_at
 ```
 
-### subscriptions
+### user_points
 
 ```text
 id
 user_id
-apple_original_transaction_id
-product_id
-status
-expires_at
-photo_limit_per_day
+balance
+total_earned
+total_spent
 created_at
 updated_at
+```
+
+### point_transactions
+
+```text
+id
+user_id
+type            # earn / spend
+amount
+reason          # daily_star / photo_recognition
+related_date
+created_at
 ```
 
 ### calibration_suggestions
@@ -263,12 +274,12 @@ created_at
 ### 6.1 认证
 
 ```text
-POST /auth/apple
+POST /auth/wechat       # 微信登录
 POST /auth/logout
 DELETE /account
 ```
 
-`DELETE /account` 必须存在，因为支持账号创建的 App 需要在 App 内提供账号删除入口。
+`DELETE /account` 必须存在，因为小程序同样需要在应用内提供账号删除入口。
 
 ### 6.2 计划
 
@@ -343,7 +354,15 @@ GET /trends/macros
 GET /trends/stars
 ```
 
-## 7. 计划计算模块
+### 6.7 积分
+
+```text
+GET /points/balance
+POST /points/spend       # 兑换拍照识别次数
+GET /points/history
+```
+
+## 7. 计算模块
 
 建议把公式放进独立 domain 包，后端和客户端都按同一份测试样例验证。
 
@@ -360,11 +379,11 @@ calculateMacroTargets(plan)
 calculateCalibrationSuggestion(records)
 ```
 
-这样未来做 Android 时，可以用同样的测试样例在 Kotlin 里重写，保证结果一致。
+这样未来做 iOS / Android 时，可以用同样的测试样例在 Swift / Kotlin 里重写，保证结果一致。
 
 ## 8. AI 和食物库
 
-首版不要让 AI 直接“凭感觉报热量”。更稳的做法：
+首版不要让 AI 直接"凭感觉报热量"。更稳的做法：
 
 1. AI 输出结构化食物候选。
 2. 后端查食物库。
@@ -397,20 +416,19 @@ confidence
 - 珍珠/椰果/布丁
 - 酒精度
 
-## 9. 订阅权益
+## 9. 识别额度管理
 
-StoreKit 2 在 iOS 侧处理购买，后端负责保存和校验权益。
+首发不设 VIP 或订阅。通过积分体系管理拍照识别额度：
 
-免费：
+- 每日免费：1 次拍照识别
+- 达标奖励：1 积分（每日）
+- 兑换比例：1 积分 = 1 次额外拍照识别
+- 文字录入和手动记录：不限次数
 
-- 每天 2 次拍照识别
+后端每次调用图片识别前检查：
 
-VIP：
-
-- 每天 10 次拍照识别
-- 详细分析推荐报告
-
-后端每次调用图片识别前检查当天额度。
+1. 今日是否已使用免费次数？
+2. 用户积分余额是否足够兑换？
 
 ## 10. 隐私和合规
 
@@ -423,14 +441,14 @@ VIP：
 - 明确写隐私政策和用户协议
 - 对未成年人数据、体重、健康数据按敏感数据处理
 
-中国区还要准备：
+微信小程序合规要求：
 
-- App 备案/ICP 路线
-- 域名备案
-- 隐私政策页面
-- 用户协议页面
-- 第三方 SDK 清单
-- 数据处理说明
+- 小程序备案
+- 隐私保护指引配置
+- 用户协议和隐私政策
+- 相机 / 相册权限说明
+- 健康体重数据用途说明
+- 提审材料准备
 
 ## 11. 部署教程路线
 
@@ -462,6 +480,7 @@ npm run dev
 - 配置 HTTPS
 - 配置对象存储
 - 配置日志和备份
+- 配置小程序合法域名
 
 第四阶段正式环境：
 
@@ -470,7 +489,7 @@ npm run dev
 - 完整备份策略
 - 监控告警
 - 账号删除流程验收
-- App Store 隐私营养标签填写
+- 小程序提审和发布
 
 ## 12. 验收标准
 
@@ -480,7 +499,7 @@ npm run dev
 - 用户可以生成计划
 - 用户可以保存餐食、运动和体重
 - 用户可以获取今日摘要和趋势图数据
-- 图片识别额度能正确限制
+- 图片识别额度能正确限制（免费 + 积分）
 - 删除账号能删除关联数据
 - 代谢校准能生成可解释建议
 - 所有核心公式有单元测试

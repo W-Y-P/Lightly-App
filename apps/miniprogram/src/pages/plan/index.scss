@@ -1,0 +1,263 @@
+.plan-page {
+  min-height: 100vh;
+  background: #F8FDF8;
+}
+
+.plan-scroll {
+  height: 100vh;
+}
+
+.plan-goal-card {
+  margin: 20px 32px 0;
+  background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+  border-radius: 28px;
+  padding: 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.plan-goal-title {
+  font-size: 30px;
+  font-weight: 600;
+  color: #2E7D32;
+  margin-bottom: 24px;
+}
+
+.plan-goal-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.plan-goal-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.plan-goal-value {
+  font-size: 44px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.plan-goal-value--target {
+  color: #2E7D32;
+}
+
+.plan-goal-label {
+  font-size: 22px;
+  color: #666666;
+  margin-top: 4px;
+}
+
+.plan-goal-arrow {
+  padding: 0 16px;
+}
+
+.plan-goal-arrow-text {
+  font-size: 36px;
+  color: #4CAF50;
+}
+
+.plan-progress-bg {
+  height: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.plan-progress-fill {
+  height: 16px;
+  background: #4CAF50;
+  border-radius: 8px;
+}
+
+.plan-goal-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.plan-meta-text {
+  font-size: 22px;
+  color: #666666;
+}
+
+.plan-edit-btn {
+  background: #4CAF50;
+  padding: 16px 0;
+  border-radius: 24px;
+  text-align: center;
+}
+
+.plan-edit-text {
+  font-size: 26px;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.plan-card {
+  margin: 20px 32px 0;
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.plan-card-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 24px;
+}
+
+.plan-calorie-grid {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 24px;
+}
+
+.plan-calorie-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.plan-calorie-value {
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.plan-calorie-label {
+  font-size: 22px;
+  color: #999999;
+  margin-top: 4px;
+}
+
+.plan-recommended {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #E8F5E9;
+  padding: 20px 24px;
+  border-radius: 16px;
+}
+
+.plan-recommended-label {
+  font-size: 26px;
+  color: #333333;
+}
+
+.plan-recommended-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #2E7D32;
+}
+
+.plan-macro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.plan-macro-edit {
+  padding: 8px 20px;
+  background: #E8F5E9;
+  border-radius: 16px;
+}
+
+.plan-macro-edit-text {
+  font-size: 22px;
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.plan-macro-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.plan-macro-item {
+  padding: 16px;
+  background: #FAFAFA;
+  border-radius: 16px;
+}
+
+.plan-macro-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.plan-macro-name {
+  font-size: 26px;
+  color: #333333;
+}
+
+.plan-macro-range {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.plan-activity-label {
+  font-size: 26px;
+  color: #666666;
+  margin-bottom: 20px;
+}
+
+.plan-activity-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 16px;
+  margin-bottom: 12px;
+}
+
+.plan-activity-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #E0E0E0;
+}
+
+.plan-activity-dot--active {
+  background: #4CAF50;
+  box-shadow: 0 0 0 6px rgba(76, 175, 80, 0.2);
+}
+
+.plan-activity-labels {
+  display: flex;
+  justify-content: space-between;
+}
+
+.plan-activity-text {
+  font-size: 20px;
+  color: #999999;
+}
+
+.plan-note {
+  display: flex;
+  margin: 20px 32px 0;
+  background: #FFF8E1;
+  border-radius: 20px;
+  padding: 24px;
+  gap: 12px;
+}
+
+.plan-note-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.plan-note-text {
+  font-size: 24px;
+  color: #795548;
+  line-height: 1.6;
+}
+
+.plan-bottom-spacer {
+  height: 160px;
+}

@@ -5,13 +5,14 @@ import { authGuard } from "../auth.js";
 export async function accountRoutes(app: FastifyInstance) {
   /**
    * DELETE /account
-   * Soft-delete user and cascade delete all data.
+   * Hard-delete user and cascade delete all data including points & recognition logs.
    */
   app.delete("/account", { preHandler: [authGuard] }, async (request) => {
     const userId = request.userId!;
 
     // Hard-delete in order due to FK constraints
-    // MealItems -> MealEntries -> ExerciseEntries -> WeightEntries -> DailySummaries -> AiUsageLogs -> Plans -> User
+    // MealItems -> MealEntries -> ExerciseEntries -> WeightEntries -> DailySummaries
+    // -> AiUsageLogs -> PointTransactions -> Plans -> User
     const mealIds = await prisma.mealEntry.findMany({ where: { userId }, select: { id: true } });
     await prisma.mealItem.deleteMany({ where: { mealEntryId: { in: mealIds.map((m) => m.id) } } });
     await prisma.mealEntry.deleteMany({ where: { userId } });
@@ -19,6 +20,7 @@ export async function accountRoutes(app: FastifyInstance) {
     await prisma.weightEntry.deleteMany({ where: { userId } });
     await prisma.dailySummary.deleteMany({ where: { userId } });
     await prisma.aiUsageLog.deleteMany({ where: { userId } });
+    await prisma.pointTransaction.deleteMany({ where: { userId } });
     await prisma.plan.deleteMany({ where: { userId } });
     await prisma.user.delete({ where: { id: userId } });
 

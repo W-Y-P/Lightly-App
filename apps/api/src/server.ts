@@ -8,6 +8,7 @@ import { exerciseRoutes } from "./routes/exercises.js";
 import { weightRoutes } from "./routes/weights.js";
 import { dailySummaryRoutes } from "./routes/dailySummary.js";
 import { trendRoutes } from "./routes/trends.js";
+import { pointsRoutes } from "./routes/points.js";
 import { subscriptionRoutes } from "./routes/subscription.js";
 import { accountRoutes } from "./routes/account.js";
 import { aiRoutes } from "./routes/ai.js";
@@ -28,7 +29,8 @@ export async function buildServer() {
   await server.register(weightRoutes);
   await server.register(dailySummaryRoutes);
   await server.register(trendRoutes);
-  await server.register(subscriptionRoutes);
+  await server.register(pointsRoutes);
+  await server.register(subscriptionRoutes); // @deprecated compat — remove after migration
   await server.register(accountRoutes);
   await server.register(aiRoutes);
 

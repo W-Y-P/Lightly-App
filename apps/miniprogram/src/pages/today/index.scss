@@ -1,0 +1,29 @@
+.today-page {
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #E8F5E9 0%, #F1F8E9 25%, #FFFFFF 55%);
+}
+
+.today-scroll {
+  height: 100vh;
+}
+
+.today-exercise-row {
+  display: flex;
+  padding: 16px 32px 0;
+  gap: 20px;
+}
+
+.today-exercise-left {
+  flex: 1.15;
+}
+
+.today-right-stack {
+  flex: 0.85;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.today-bottom-spacer {
+  height: 160px;
+}

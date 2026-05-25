@@ -1,0 +1,41 @@
+.meal-cards {
+  padding: 0 32px;
+  margin-top: 16px;
+}
+
+.meal-cards-row {
+  display: flex;
+  gap: 12px;
+}
+
+.meal-card {
+  flex: 1;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.meal-card--recorded {
+  border: 2px solid #C8E6C9;
+}
+
+.meal-card-emoji {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.meal-card-name {
+  font-size: 22px;
+  color: #333333;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.meal-card-kcal {
+  font-size: 20px;
+  color: #999999;
+}

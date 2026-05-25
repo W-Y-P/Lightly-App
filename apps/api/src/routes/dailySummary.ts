@@ -7,6 +7,41 @@ function startOfDay(dateStr: string): Date {
   return new Date(dateStr + "T00:00:00.000Z");
 }
 
+/**
+ * Award 1 point for a star day. Idempotent: uses a unique constraint
+ * on (userId, reason="star_reward", refDate=YYYY-MM-DD) to prevent double-awarding.
+ * Both the PointTransaction creation and User balance update run inside a single
+ * Prisma interactive transaction so they either both succeed or both roll back.
+ * Returns true if newly awarded, false if already awarded (unique constraint hit).
+ * Re-throws any non-unique-constraint DB errors so callers can handle them.
+ */
+async function awardStarPoint(userId: string, dateStr: string): Promise<boolean> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.pointTransaction.create({
+        data: {
+          userId,
+          amount: 1,
+          reason: "star_reward",
+          refDate: dateStr,
+        },
+      });
+      await tx.user.update({
+        where: { id: userId },
+        data: { pointBalance: { increment: 1 } },
+      });
+    });
+    return true; // newly awarded
+  } catch (err: any) {
+    // P2002 = Prisma unique constraint violation → already awarded today
+    if (err?.code === "P2002") {
+      return false;
+    }
+    // All other DB errors must surface to the caller
+    throw err;
+  }
+}
+
 export async function dailySummaryRoutes(app: FastifyInstance) {
   // ── GET /daily-summary?date=YYYY-MM-DD ──────────────────────────
   app.get("/daily-summary", { preHandler: [authGuard] }, async (request) => {
@@ -88,6 +123,18 @@ export async function dailySummaryRoutes(app: FastifyInstance) {
       },
     });
 
+    // Award point if star earned (idempotent)
+    let pointAwarded = false;
+    if (starRule.starAwarded) {
+      pointAwarded = await awardStarPoint(request.userId!, dateStr);
+    }
+
+    // Get current point balance
+    const user = await prisma.user.findUnique({
+      where: { id: request.userId! },
+      select: { pointBalance: true },
+    });
+
     return {
       date: dateStr,
       hasPlan: true,
@@ -116,8 +163,10 @@ export async function dailySummaryRoutes(app: FastifyInstance) {
         awarded: starRule.starAwarded,
         isRecordComplete: starRule.isRecordComplete,
         recordedMealSlots: recordedSlots.size,
+        pointAwarded,
         warnings: [...summary.warnings, ...starRule.warnings],
       },
+      pointBalance: user?.pointBalance ?? 0,
     };
   });
 }
