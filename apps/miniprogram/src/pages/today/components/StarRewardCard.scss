@@ -1,33 +1,35 @@
 .star-card {
   background: #ffffff;
   border-radius: 28px;
-  padding: 28px;
+  padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
 }
 
 .star-header {
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .star-icon-circle {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: #FFF8E1;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .star-icon {
-  font-size: 32px;
+  font-size: 28px;
 }
 
 .star-title {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 600;
   color: #333333;
 }
@@ -35,7 +37,7 @@
 .star-stats {
   display: flex;
   justify-content: space-around;
-  padding: 8px 0 16px;
+  padding: 6px 0 12px;
 }
 
 .star-stat {
@@ -45,25 +47,25 @@
 }
 
 .star-stat-value {
-  font-size: 36px;
+  font-size: 32px;
   font-weight: 700;
   color: #FF9800;
 }
 
 .star-stat-label {
-  font-size: 22px;
+  font-size: 20px;
   color: #999999;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .star-encourage {
   text-align: center;
-  padding: 12px;
+  padding: 10px;
   background: #FFF8E1;
-  border-radius: 16px;
+  border-radius: 14px;
 }
 
 .star-encourage-text {
-  font-size: 24px;
+  font-size: 22px;
   color: #F57C00;
 }

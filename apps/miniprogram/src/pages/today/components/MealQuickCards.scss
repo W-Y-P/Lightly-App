@@ -5,18 +5,20 @@
 
 .meal-cards-row {
   display: flex;
-  gap: 12px;
+  gap: 10px;
 }
 
 .meal-card {
   flex: 1;
+  min-width: 0;
   background: #ffffff;
-  border-radius: 24px;
-  padding: 20px 0;
+  border-radius: 20px;
+  padding: 16px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
 }
 
 .meal-card--recorded {
@@ -24,18 +26,25 @@
 }
 
 .meal-card-emoji {
-  font-size: 40px;
-  margin-bottom: 8px;
+  font-size: 36px;
+  margin-bottom: 6px;
 }
 
 .meal-card-name {
-  font-size: 22px;
+  font-size: 20px;
   color: #333333;
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  padding: 0 4px;
+  box-sizing: border-box;
 }
 
 .meal-card-kcal {
-  font-size: 20px;
+  font-size: 18px;
   color: #999999;
+  white-space: nowrap;
 }

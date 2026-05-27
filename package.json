@@ -11,11 +11,13 @@
     "dev": "vite --host 0.0.0.0",
     "dev:api": "npm run dev -w apps/api",
     "dev:miniprogram": "npm run dev:weapp -w apps/miniprogram",
+    "dev:miniprogram:h5": "npm run dev:h5:node20 -w apps/miniprogram",
     "build": "tsc --noEmit && vite build",
     "build:api": "npm run build -w apps/api",
     "build:miniprogram": "npm run build:weapp -w apps/miniprogram",
-    "preview": "vite preview --host 0.0.0.0",
-    "build:miniprogram:node20": "cd apps/miniprogram && npx -p node@20 node ../../node_modules/.bin/taro build --type weapp"
+    "build:miniprogram:node20": "cd apps/miniprogram && npx -p node@20 node ../../node_modules/.bin/taro build --type weapp",
+    "build:miniprogram:h5": "npm run build:h5:node20 -w apps/miniprogram",
+    "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "@rollup/rollup-darwin-arm64": "^4.60.4",

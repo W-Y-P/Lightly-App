@@ -1,33 +1,35 @@
 .exercise-card {
   background: #ffffff;
   border-radius: 28px;
-  padding: 28px;
+  padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
 }
 
 .exercise-header {
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .exercise-icon-circle {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: #E3F2FD;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .exercise-icon {
-  font-size: 32px;
+  font-size: 28px;
 }
 
 .exercise-title {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 600;
   color: #333333;
 }
@@ -36,43 +38,47 @@
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 16px 0;
+  padding: 12px 0;
 }
 
 .exercise-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-width: 0;
+  flex: 1;
 }
 
 .exercise-stat-value {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   color: #2196F3;
+  line-height: 1.2;
 }
 
 .exercise-stat-unit {
-  font-size: 22px;
+  font-size: 20px;
   color: #999999;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .exercise-divider {
-  width: 2px;
-  height: 40px;
+  width: 1px;
+  height: 36px;
   background: #E0E0E0;
+  flex-shrink: 0;
 }
 
 .exercise-btn {
-  margin-top: 16px;
+  margin-top: 12px;
   background: #E3F2FD;
-  padding: 14px 0;
-  border-radius: 24px;
+  padding: 12px 0;
+  border-radius: 20px;
   text-align: center;
 }
 
 .exercise-btn-text {
-  font-size: 26px;
+  font-size: 24px;
   color: #2196F3;
   font-weight: 600;
 }

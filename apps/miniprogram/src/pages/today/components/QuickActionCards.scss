@@ -2,28 +2,31 @@
   display: flex;
   padding: 0 32px;
   margin-top: 16px;
-  gap: 20px;
+  gap: 16px;
 }
 
 .action-card {
   flex: 1;
+  min-width: 0;
   background: #ffffff;
-  border-radius: 28px;
-  padding: 28px;
+  border-radius: 24px;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
 }
 
 .action-icon-circle {
-  width: 80px;
-  height: 80px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .action-icon--weight {
@@ -35,26 +38,27 @@
 }
 
 .action-icon {
-  font-size: 40px;
+  font-size: 32px;
 }
 
 .action-title {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 600;
   color: #333333;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  text-align: center;
 }
 
 .action-subtitle {
-  font-size: 22px;
+  font-size: 20px;
   color: #999999;
   text-align: center;
   line-height: 1.4;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .action-btn {
-  padding: 14px 36px;
+  padding: 12px 28px;
   border-radius: 40px;
 }
 
@@ -67,7 +71,7 @@
 }
 
 .action-btn-text {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
 }
 

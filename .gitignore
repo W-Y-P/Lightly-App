@@ -10,3 +10,4 @@ apps/miniprogram/dist
 apps/miniprogram/node_modules
 apps/miniprogram/.taro
 apps/miniprogram/.swc
+apps/miniprogram/project.private.config.json*

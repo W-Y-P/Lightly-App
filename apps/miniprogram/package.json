@@ -10,7 +10,13 @@
   },
   "scripts": {
     "build:weapp": "taro build --type weapp",
-    "dev:weapp": "npm run build:weapp -- --watch"
+    "dev:weapp": "npm run build:weapp -- --watch",
+    "build:h5": "taro build --type h5",
+    "dev:h5": "npm run build:h5 -- --watch",
+    "build:h5:node20": "npx -p node@20 node ../../node_modules/.bin/taro build --type h5",
+    "dev:h5:node20": "npm run build:h5:node20 -- --watch",
+    "typecheck": "tsc --noEmit",
+    "build:weapp:node20": "npx -p node@20 node ../../node_modules/.bin/taro build --type weapp"
   },
   "browserslist": [
     "last 3 versions",
@@ -22,8 +28,10 @@
     "@tarojs/components": "4.0.9",
     "@tarojs/helper": "4.0.9",
     "@tarojs/plugin-framework-react": "4.0.9",
+    "@tarojs/plugin-platform-h5": "4.0.9",
     "@tarojs/plugin-platform-weapp": "4.0.9",
     "@tarojs/react": "4.0.9",
+    "@tarojs/router": "^4.0.9",
     "@tarojs/runtime": "4.0.9",
     "@tarojs/shared": "4.0.9",
     "@tarojs/taro": "4.0.9",
@@ -38,6 +46,7 @@
     "@babel/preset-react": "^7.29.7",
     "@babel/preset-typescript": "^7.29.7",
     "@babel/runtime": "^7.24.0",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.15",
     "@tarojs/webpack5-runner": "^4.0.9",
     "@types/react": "^18.3.0",
     "babel-preset-taro": "4.0.9",

@@ -1,4 +1,4 @@
-import { View, Text, ScrollView } from '@tarojs/components'
+import { View, Text } from '@tarojs/components'
 import { useState } from 'react'
 import Taro, { useDidShow } from '@tarojs/taro'
 import { getEntitlement, deleteAccount, ensureAuthReady, resetAuth } from '../../api/client'
@@ -63,7 +63,7 @@ export default function ProfilePage() {
 
   return (
     <View className='profile-page'>
-      <ScrollView className='profile-scroll' scrollY enhanced showScrollbar={false}>
+      <View className='profile-scroll'>
         {/* User card */}
         <View className='profile-user-card'>
           <View className='profile-avatar'>
@@ -115,7 +115,7 @@ export default function ProfilePage() {
         </View>
 
         <View className='profile-bottom-spacer' />
-      </ScrollView>
+      </View>
     </View>
   )
 }

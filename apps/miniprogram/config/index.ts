@@ -1,4 +1,5 @@
 import { defineConfig } from '@tarojs/cli'
+import path from 'path'
 
 export default defineConfig({
   projectName: 'fat-loss-miniprogram',
@@ -12,7 +13,11 @@ export default defineConfig({
   },
   sourceRoot: 'src',
   outputRoot: 'dist',
-  plugins: ['@tarojs/plugin-framework-react', '@tarojs/plugin-platform-weapp'],
+  plugins: [
+    '@tarojs/plugin-framework-react',
+    '@tarojs/plugin-platform-weapp',
+    '@tarojs/plugin-platform-h5',
+  ],
   defineConstants: {},
   copy: {
     patterns: [],
@@ -33,6 +38,32 @@ export default defineConfig({
           generateScopedName: '[name]__[local]___[hash:base64:5]',
         },
       },
+    },
+  },
+  h5: {
+    publicPath: '/',
+    staticDirectory: 'static',
+    esnextModules: [],
+    postcss: {
+      autoprefixer: {
+        enable: true,
+        config: {},
+      },
+      cssModules: {
+        enable: false,
+        config: {
+          namingPattern: 'module',
+          generateScopedName: '[name]__[local]___[hash:base64:5]',
+        },
+      },
+    },
+    devServer: {
+      port: 10086,
+      host: '0.0.0.0',
+    },
+    webpackChain(chain) {
+      chain.resolve.modules.add(path.resolve(process.cwd(), 'node_modules'))
+      chain.resolve.modules.add(path.resolve(process.cwd(), '../../node_modules'))
     },
   },
 })

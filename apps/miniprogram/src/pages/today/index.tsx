@@ -1,4 +1,4 @@
-import { View, ScrollView } from '@tarojs/components'
+import { View } from '@tarojs/components'
 import { useEffect } from 'react'
 import { getDailySummary, getEntitlement, getCurrentPlan, ensureAuthReady } from '../../api/client'
 import { setTodayData } from '../../store/todayDataStore'
@@ -131,7 +131,7 @@ export default function TodayPage() {
 
   return (
     <View className='today-page'>
-      <ScrollView className='today-scroll' scrollY enhanced showScrollbar={false}>
+      <View className='today-scroll'>
         <HeaderSection />
         <CalorieBalanceCard />
         <MetricRow />
@@ -154,7 +154,7 @@ export default function TodayPage() {
         <DailyAdviceCard />
 
         <View className='today-bottom-spacer' />
-      </ScrollView>
+      </View>
     </View>
   )
 }

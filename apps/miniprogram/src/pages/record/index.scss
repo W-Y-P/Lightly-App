@@ -4,13 +4,22 @@
 }
 
 .record-scroll {
-  height: 100vh;
+  min-height: 100vh;
 }
 
 .record-calendar {
   background: #ffffff;
   padding: 20px 0;
   border-bottom: 2px solid #F0F0F0;
+}
+
+.record-loading-bar {
+  padding: 8px 32px 12px;
+}
+
+.record-loading-text {
+  font-size: 22px;
+  color: #999999;
 }
 
 .record-calendar-scroll {
@@ -83,10 +92,69 @@
   color: #2E7D32;
 }
 
+.record-summary-value--deficit {
+  color: #FF9800;
+}
+
 .record-summary-label {
   font-size: 22px;
   color: #999999;
   margin-top: 4px;
+  text-align: center;
+}
+
+.record-achievement-rate {
+  font-size: 20px;
+  color: #4CAF50;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* 缺口详情卡片 */
+.record-gap-card {
+  margin: 0 32px 0;
+  background: #FFF8E1;
+  border-radius: 24px;
+  padding: 24px 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.record-gap-title {
+  font-size: 26px;
+  font-weight: 600;
+  color: #F57F17;
+  margin-bottom: 16px;
+}
+
+.record-gap-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.record-gap-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.record-gap-kcal {
+  font-size: 36px;
+  font-weight: 700;
+  color: #E65100;
+}
+
+.record-gap-sublabel {
+  font-size: 20px;
+  color: #999999;
+  margin-top: 4px;
+}
+
+.record-gap-divider {
+  font-size: 32px;
+  color: #CCCCCC;
+  font-weight: 300;
 }
 
 .record-section {
@@ -136,7 +204,10 @@
 }
 
 .record-exercise-btn {
-  padding: 14px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 20px;
   background: #E3F2FD;
   border-radius: 20px;
 }
@@ -144,6 +215,12 @@
 .record-exercise-label {
   font-size: 24px;
   color: #1976D2;
+}
+
+.record-exercise-kcal {
+  font-size: 20px;
+  color: #90CAF9;
+  margin-top: 2px;
 }
 
 .record-weight-card {
@@ -155,10 +232,21 @@
   padding: 24px 28px;
 }
 
+.record-weight-info {
+  display: flex;
+  flex-direction: column;
+}
+
 .record-weight-value {
   font-size: 36px;
   font-weight: 700;
   color: #7B1FA2;
+}
+
+.record-weight-context {
+  font-size: 22px;
+  color: #BA68C8;
+  margin-top: 4px;
 }
 
 .record-weight-btn {

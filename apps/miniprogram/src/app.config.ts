@@ -15,10 +15,10 @@ export default defineAppConfig({
     backgroundColor: '#E8F5E9',
   },
   tabBar: {
-    color: '#999999',
-    selectedColor: '#4CAF50',
+    color: '#9AA0A6',
+    selectedColor: '#21B96B',
     backgroundColor: '#ffffff',
-    borderStyle: 'black',
+    borderStyle: 'white',
     list: [
       {
         pagePath: 'pages/today/index',

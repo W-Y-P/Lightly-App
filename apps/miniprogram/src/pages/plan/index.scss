@@ -4,7 +4,7 @@
 }
 
 .plan-scroll {
-  height: 100vh;
+  min-height: 100vh;
 }
 
 .plan-goal-card {
@@ -260,4 +260,17 @@
 
 .plan-bottom-spacer {
   height: 160px;
+}
+
+.plan-mock-banner {
+  margin: 16px 32px 0;
+  padding: 16px 24px;
+  background: #FFF8E1;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.plan-mock-text {
+  font-size: 24px;
+  color: #F57C00;
 }

@@ -1,33 +1,35 @@
 .weight-card {
   background: #ffffff;
   border-radius: 28px;
-  padding: 28px;
+  padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
 }
 
 .weight-header {
   display: flex;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .weight-icon-circle {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: #F3E5F5;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .weight-icon {
-  font-size: 32px;
+  font-size: 28px;
 }
 
 .weight-title {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 600;
   color: #333333;
 }
@@ -35,27 +37,28 @@
 .weight-current {
   display: flex;
   align-items: baseline;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .weight-current-value {
-  font-size: 44px;
+  font-size: 36px;
   font-weight: 700;
   color: #2E7D32;
 }
 
 .weight-current-unit {
-  font-size: 24px;
+  font-size: 22px;
   color: #888888;
-  margin-left: 8px;
+  margin-left: 6px;
 }
 
 .weight-bars {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  height: 100px;
-  padding: 0 8px;
+  height: 80px;
+  padding: 0 4px;
+  overflow: hidden;
 }
 
 .weight-bar-col {
@@ -63,30 +66,31 @@
   flex-direction: column;
   align-items: center;
   flex: 1;
+  min-width: 0;
 }
 
 .weight-bar {
-  width: 16px;
+  width: 12px;
   background: linear-gradient(to top, #4CAF50, #81C784);
-  border-radius: 8px 8px 0 0;
+  border-radius: 6px 6px 0 0;
 }
 
 .weight-bar-date {
-  font-size: 18px;
+  font-size: 16px;
   color: #999999;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .weight-checkin-btn {
-  margin-top: 20px;
+  margin-top: 12px;
   background: #F3E5F5;
-  padding: 14px 0;
-  border-radius: 24px;
+  padding: 10px 0;
+  border-radius: 20px;
   text-align: center;
 }
 
 .weight-checkin-text {
-  font-size: 26px;
+  font-size: 24px;
   color: #9C27B0;
   font-weight: 600;
 }

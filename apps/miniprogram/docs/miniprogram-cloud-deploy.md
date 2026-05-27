@@ -1,0 +1,142 @@
+# 微信云部署说明（小程序 Cloud-first）
+
+本说明用于将 `apps/miniprogram` 的核心数据层从本地 HTTP 切换为微信云优先，并保留 DevTools 未配置云时的本地回退能力。
+
+## 1. 准备云环境
+
+1. 打开微信开发者工具 -> 你的小程序项目。
+2. 进入「云开发」，创建一个云环境（例如 `lightly-dev`）。
+3. 记录云环境 ID（例如 `lightly-dev-xxx`）。
+4. 如果你要固定环境：
+   - 把 `cloudEnvId` 设置为你的环境 ID。
+5. 如果你希望小程序自动跟随当前项目已选环境：
+   - `apps/miniprogram/src/config/cloud.ts` 中 `cloudEnvId` 保持为空字符串 `''`。
+   - 将 `useDynamicCloudEnv` 设置为 `true`。
+
+默认情况下云能力是关闭的，这样 `touristappid` 或未开通云开发的本地 demo 不会卡住模拟器；正式部署到微信云前需要按上面方式显式启用。
+
+如果你仍想在本地用旧的 HTTP API 调试，可以把 `useHttpFallback` 设置为 `true`，并启动 `http://127.0.0.1:8797` 对应的 API 服务。默认关闭，避免开发者工具控制台出现本地服务未启动的网络错误。
+
+## 2. project.config.json
+
+当前项目已配置：
+
+- `miniprogramRoot`: `dist/`
+- `cloudfunctionRoot`: `cloudfunctions/`
+
+你不需要手动再加目录结构，只要在开发者工具中打开这个项目根目录即可。
+
+## 3. 上传并部署云函数
+
+云函数位于：
+
+- `apps/miniprogram/cloudfunctions/lightlyApi`
+
+部署步骤：
+
+1. 在微信开发者工具中打开项目。
+2. 切到「云函数」面板。
+3. 右键 `lightlyApi` -> **上传并部署：云端安装依赖**。
+4. 等待部署成功。
+
+## 4. 创建云数据库集合
+
+在「云开发」->「数据库」中创建以下集合：
+
+- `users`
+- `plans`
+- `meals`
+- `exercises`
+- `weights`
+- `pointsLedger`
+- `photoUsage`
+
+默认 MVP 阶段建议：
+
+- 先把集合权限设置为 **仅创建者可读写**（开发阶段足够）。
+- 后续再按生产规则收紧。
+
+## 5. 建议索引
+
+MVP 可先不建索引，直接验证流程。若后续数据增长，可加：
+
+- `meals`: `{ openid: 1, date: 1 }`
+- `exercises`: `{ openid: 1, date: 1 }`
+- `weights`: `{ openid: 1, date: 1 }`
+- `plans`: `{ openid: 1, createdAt: -1 }`
+
+## 6. 初始化逻辑
+
+前端初始化链路：
+
+- 云配置启用后，`app.ts` 启动时执行 `wx.cloud.init(...)`
+- 云配置启用后，默认优先走微信云函数 `lightlyApi`
+- 若云未启用或不可用，页面使用 mock 数据兜底，保证本地 demo 不白屏
+- 若云函数调用失败，且 `useHttpFallback` 开启，前端再 fallback 到原有 HTTP 路径
+- 页面不会因为未配置云而白屏
+
+## 7. 验证顺序
+
+### 7.1 本地 typecheck
+
+```bash
+npm exec --workspace apps/miniprogram tsc -- --noEmit
+```
+
+### 7.2 weapp build
+
+```bash
+cd apps/miniprogram
+/Users/wzl/.npm/_npx/ebaba8b9e55fd0a9/node_modules/node/bin/node ../../node_modules/.bin/taro build --type weapp
+```
+
+### 7.3 开发者工具验证
+
+1. 打开微信开发者工具。
+2. 确认已开启云开发。
+3. 进入「今日」页，检查是否拿到 daily summary。
+4. 新增一餐后刷新，检查 `meals` 集合是否落库。
+5. 检查 `pointsLedger` 是否在至少 2 个餐段有记录/轻断食后，并达到目标缺口 80% 时写入 `daily_star`。
+
+## 8. 数据流（当前 MVP）
+
+1. 页面调用 `client.ts` API。
+2. 云配置启用时，`client.ts` 优先调用 `wx.cloud.callFunction('lightlyApi', { action, payload })`。
+3. 云函数按 `action` 路由到对应处理函数。
+4. 云函数读写云数据库，返回统一 `{ code, data, message }`。
+5. 前端映射成原有 `{ ok, data } | { ok, error }` 结构。
+6. 若云函数失败且 `useHttpFallback` 开启，前端再 fallback HTTP；否则页面使用 mock 兜底。
+
+## 9. 当前已覆盖 action
+
+- `authWechat`
+- `authGuest`
+- `getEntitlement`
+- `createPlan`
+- `getCurrentPlan`
+- `getDailySummary`
+- `createMeal`
+- `getMeals`
+- `createExercise`
+- `getExercises`
+- `createWeight`
+- `getWeights`
+- `getWeightTrend`
+- `getDeficitTrend`
+- `aiTextEstimate`
+- `aiPhotoEstimate`
+- `deleteAccount`
+
+## 10. 你需要在微信云后台手动完成的配置
+
+- 创建云环境
+- 开通云开发
+- 创建上述 7 个集合
+- 上传部署 `lightlyApi` 云函数
+- 若使用固定环境，填写 `cloudEnvId`
+- 若使用当前动态环境，设置 `useDynamicCloudEnv = true`
+
+## 11. 说明
+
+本次改造范围覆盖数据层、云部署配置，以及记录/趋势/计划页的数据接入。  
+现有 H5 构建路径保留，云调用仅在 `weapp`、云配置启用且 `wx.cloud` 可用时生效。

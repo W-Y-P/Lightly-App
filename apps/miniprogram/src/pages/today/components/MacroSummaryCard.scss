@@ -2,23 +2,23 @@
   margin: 16px 32px 0;
   background: #ffffff;
   border-radius: 24px;
-  padding: 28px;
+  padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .macro-header {
   display: flex;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .macro-icon {
-  font-size: 28px;
-  margin-right: 12px;
+  font-size: 26px;
+  margin-right: 10px;
 }
 
 .macro-title {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 600;
   color: #333333;
 }
@@ -26,7 +26,7 @@
 .macro-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .macro-item {
@@ -37,36 +37,36 @@
 .macro-item-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .macro-name {
-  font-size: 26px;
+  font-size: 24px;
   color: #333333;
   font-weight: 500;
 }
 
 .macro-amount {
-  font-size: 24px;
+  font-size: 22px;
   color: #666666;
 }
 
 .macro-bar-bg {
-  height: 16px;
+  height: 14px;
   background: #F5F5F5;
-  border-radius: 8px;
+  border-radius: 7px;
   overflow: hidden;
 }
 
 .macro-bar-fill {
-  height: 16px;
-  border-radius: 8px;
+  height: 14px;
+  border-radius: 7px;
   transition: width 0.3s ease;
 }
 
 .macro-pct {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
   text-align: right;
-  margin-top: 6px;
+  margin-top: 4px;
 }
