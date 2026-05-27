@@ -7,36 +7,43 @@ export default function QuickActionCards() {
   const { entitlement } = useTodayData()
 
   const handleWeight = () => {
-    console.log('weight checkin')
-    Taro.showToast({ title: '体重打卡', icon: 'none' })
+    Taro.setStorageSync('pendingRecordAction', { type: 'weight' })
+    Taro.switchTab({ url: '/pages/record/index' })
   }
 
   const handlePhoto = () => {
+    // If entitlement data is not loaded yet, let the record page handle quota
     if (!entitlement) {
-      Taro.showToast({ title: '正在加载额度信息…', icon: 'none' })
+      Taro.setStorageSync('pendingRecordAction', { type: 'meal', slot: 'other', mode: 'photo' })
+      Taro.switchTab({ url: '/pages/record/index' })
       return
     }
 
     const { freeRemaining, pointBalance } = entitlement
 
     if (freeRemaining > 0) {
-      Taro.showModal({
-        title: 'AI 拍照识别',
-        content: `今日还有 ${freeRemaining} 次免费识别机会，是否使用？（拍照功能开发中）`,
-        showCancel: true,
-        confirmText: '好的',
-      })
+      // Has free quota → go to record page with photo mode
+      Taro.setStorageSync('pendingRecordAction', { type: 'meal', slot: 'other', mode: 'photo' })
+      Taro.switchTab({ url: '/pages/record/index' })
     } else if (pointBalance > 0) {
+      // No free quota but has points → gentle prompt, then navigate on confirm
       Taro.showModal({
         title: 'AI 拍照识别',
-        content: `今日免费次数已用完。可使用 1 积分兑换额外识别次数（当前积分：${pointBalance}）。拍照功能开发中。`,
+        content: `今日免费识别已用完，可通过达标积分兑换额外次数。（当前积分：${pointBalance}）`,
         showCancel: true,
-        confirmText: '了解',
+        confirmText: '去兑换',
+        cancelText: '取消',
+      }).then((res) => {
+        if (res.confirm) {
+          Taro.setStorageSync('pendingRecordAction', { type: 'meal', slot: 'other', mode: 'photo' })
+          Taro.switchTab({ url: '/pages/record/index' })
+        }
       })
     } else {
+      // No free quota and no points
       Taro.showModal({
         title: 'AI 拍照识别',
-        content: '今日免费次数已用完，且积分不足。坚持每日打卡达标即可获取积分奖励！',
+        content: '今日免费识别已用完，可通过达标积分兑换额外次数。',
         showCancel: false,
         confirmText: '知道了',
       })

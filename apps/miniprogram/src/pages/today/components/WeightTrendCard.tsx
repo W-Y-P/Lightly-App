@@ -10,8 +10,8 @@ export default function WeightTrendCard() {
   const range = maxW - minW || 1
 
   const handleCheckin = () => {
-    console.log('weight checkin')
-    Taro.showToast({ title: '体重打卡', icon: 'none' })
+    Taro.setStorageSync('pendingRecordAction', { type: 'weight' })
+    Taro.switchTab({ url: '/pages/record/index' })
   }
 
   // Build simple bar chart

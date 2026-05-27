@@ -7,8 +7,8 @@ export default function ExerciseCard() {
   const d = useTodayData()
 
   const handleExercise = () => {
-    console.log('exercise record')
-    Taro.showToast({ title: '运动记录', icon: 'none' })
+    Taro.setStorageSync('pendingRecordAction', { type: 'exercise' })
+    Taro.switchTab({ url: '/pages/record/index' })
   }
 
   return (

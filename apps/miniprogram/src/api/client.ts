@@ -324,6 +324,8 @@ export interface CreateExerciseBody {
   exerciseType: string
   durationMin: number
   weightKg?: number
+  /** 用户手动覆盖热量；不传则由后端 MET 自动估算 */
+  confirmedKcal?: number
 }
 
 export async function createExercise(body: CreateExerciseBody) {
@@ -365,13 +367,22 @@ export async function getDeficitTrend(days?: number) {
 
 // ── AI ──
 export async function aiTextEstimate(description: string) {
-  return backendRequest<{ estimate: { foodName: string; kcal: number; carbG: number; proteinG: number; fatG: number; confidence: number }; message: string }>('aiTextEstimate', { description }, 'POST', '/ai/meal-text-estimate', { description })
+  return backendRequest<{
+    /** @deprecated 兼容旧调用，单条粗估结果 */
+    estimate: { foodName: string; kcal: number; carbG: number; proteinG: number; fatG: number; confidence: number }
+    /** 食品列表（新） */
+    items: MealItemInput[]
+    message: string
+  }>('aiTextEstimate', { description }, 'POST', '/ai/meal-text-estimate', { description })
 }
 
 /** AI 拍照识别：imageBase64, mimeType, usePoint(是否使用积分兑换额外次数) */
 export async function aiPhotoEstimate(imageBase64: string, mimeType?: string, usePoint?: boolean) {
   return backendRequest<{
+    /** @deprecated 兼容旧调用，单条粗估结果 */
     estimate: { foodName: string; kcal: number; carbG: number; proteinG: number; fatG: number; confidence: number }
+    /** 食品列表（新） */
+    items: MealItemInput[]
     pointBalance: number
     freeRemaining: number
     usedPoint: boolean

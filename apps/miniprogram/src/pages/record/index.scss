@@ -264,3 +264,392 @@
 .record-bottom-spacer {
   height: 160px;
 }
+
+/* ── 餐食弹窗 ── */
+.meal-modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.meal-modal {
+  width: 100%;
+  max-height: 85vh;
+  background: #ffffff;
+  border-radius: 32px 32px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.meal-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 32px 20px;
+  border-bottom: 1px solid #E8F5E9;
+}
+
+.meal-modal-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #2E7D32;
+}
+
+.meal-modal-close {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #F1F8E9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meal-modal-close-text {
+  font-size: 28px;
+  color: #66BB6A;
+  font-weight: 600;
+}
+
+.meal-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 32px;
+}
+
+/* 食物表格 */
+.meal-table {
+  width: 100%;
+}
+
+.meal-table-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 2px solid #E8F5E9;
+}
+
+.meal-th {
+  font-size: 22px;
+  font-weight: 600;
+  color: #4CAF50;
+}
+
+.meal-th-food {
+  flex: 2;
+}
+
+.meal-th-num {
+  flex: 1;
+  text-align: center;
+}
+
+.meal-th-del {
+  width: 80px;
+}
+
+.meal-table-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #F5F5F5;
+}
+
+.meal-td {
+  padding: 0 4px;
+}
+
+.meal-td-food {
+  flex: 2;
+}
+
+.meal-td-num {
+  flex: 1;
+}
+
+.meal-td-del {
+  width: 80px;
+  display: flex;
+  justify-content: center;
+}
+
+.meal-input {
+  background: #F9FFF9;
+  border: 1px solid #C8E6C9;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 24px;
+  color: #333333;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.meal-input-num {
+  text-align: center;
+}
+
+.meal-del-btn {
+  padding: 8px 12px;
+  background: #FFEBEE;
+  border-radius: 10px;
+}
+
+.meal-del-btn-text {
+  font-size: 20px;
+  color: #EF5350;
+}
+
+.meal-add-row {
+  margin: 16px 0;
+  padding: 16px;
+  background: #E8F5E9;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meal-add-row-text {
+  font-size: 26px;
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+/* AI 区域 */
+.meal-ai-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 2px solid #E8F5E9;
+}
+
+.meal-ai-label {
+  font-size: 26px;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 12px;
+}
+
+.meal-textarea {
+  width: 100%;
+  min-height: 120px;
+  background: #F9FFF9;
+  border: 1px solid #C8E6C9;
+  border-radius: 16px;
+  padding: 16px;
+  font-size: 24px;
+  color: #333333;
+  box-sizing: border-box;
+}
+
+.meal-ai-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.meal-ai-btn {
+  flex: 1;
+  padding: 18px 0;
+  background: #E8F5E9;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meal-ai-btn--photo {
+  background: #C8E6C9;
+}
+
+.meal-ai-btn-text {
+  font-size: 26px;
+  color: #2E7D32;
+  font-weight: 600;
+}
+
+/* 底部按钮 */
+.meal-modal-footer {
+  display: flex;
+  gap: 20px;
+  padding: 20px 32px 48px;
+  border-top: 1px solid #E8F5E9;
+}
+
+.meal-footer-btn {
+  flex: 1;
+  padding: 22px 0;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meal-footer-btn--cancel {
+  background: #F5F5F5;
+}
+
+.meal-footer-btn--confirm {
+  background: linear-gradient(135deg, #66BB6A, #43A047);
+}
+
+.meal-footer-btn-text {
+  font-size: 28px;
+  font-weight: 600;
+  color: #666666;
+}
+
+.meal-footer-btn-text--confirm {
+  color: #ffffff;
+}
+
+/* ── 运动弹窗 ── */
+.exercise-modal {
+  max-height: 78vh;
+}
+
+.exercise-modal-body {
+  padding-top: 24px;
+}
+
+.exercise-table-header,
+.exercise-table-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.exercise-table-header {
+  padding: 8px 0 14px;
+  border-bottom: 2px solid #E8F5E9;
+}
+
+.exercise-table-row {
+  padding: 14px 0;
+  border-bottom: 1px solid #F5F5F5;
+}
+
+.exercise-th {
+  font-size: 22px;
+  font-weight: 600;
+  color: #4CAF50;
+}
+
+.exercise-th-type,
+.exercise-type-cell {
+  flex: 1.5;
+}
+
+.exercise-th-num,
+.exercise-num-cell {
+  flex: 1;
+}
+
+.exercise-th-del,
+.exercise-del-cell {
+  width: 80px;
+  display: flex;
+  justify-content: center;
+}
+
+.exercise-picker {
+  min-height: 58px;
+  padding: 0 14px;
+  border: 1px solid #C8E6C9;
+  border-radius: 12px;
+  background: #F9FFF9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.exercise-picker-text {
+  font-size: 24px;
+  color: #333333;
+}
+
+.exercise-picker-arrow {
+  font-size: 22px;
+  color: #66BB6A;
+}
+
+/* ── 体重弹窗 ── */
+.weight-modal {
+  max-height: 60vh;
+}
+
+.weight-modal-body {
+  padding: 28px 32px;
+}
+
+.weight-modal-label {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  color: #333333;
+  margin: 0 0 14px;
+}
+
+.weight-context-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.weight-context-option {
+  flex: 1;
+  padding: 20px 0;
+  border-radius: 18px;
+  background: #F6F8F6;
+  border: 2px solid #E8F5E9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.weight-context-option--active {
+  background: #E8F5E9;
+  border-color: #66BB6A;
+}
+
+.weight-context-text {
+  font-size: 26px;
+  color: #777777;
+  font-weight: 600;
+}
+
+.weight-context-text--active {
+  color: #2E7D32;
+}
+
+.weight-input-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.weight-input {
+  flex: 1;
+  min-height: 72px;
+  padding: 0 20px;
+  border-radius: 16px;
+  border: 1px solid #C8E6C9;
+  background: #F9FFF9;
+  font-size: 30px;
+  color: #333333;
+  box-sizing: border-box;
+}
+
+.weight-input-unit {
+  font-size: 28px;
+  color: #66BB6A;
+  font-weight: 700;
+}

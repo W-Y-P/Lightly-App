@@ -313,7 +313,10 @@ function createExercise(payload, openid) {
   }
   const weightKg = payload.weightKg || 70
   const met = 6
-  const confirmedKcal = Math.round(met * weightKg * (Number(payload.durationMin) / 60))
+  const autoKcal = Math.round(met * weightKg * (Number(payload.durationMin) / 60))
+  // Use user-provided confirmedKcal if it is a valid positive number; otherwise MET estimate
+  const overrideKcal = Number(payload.confirmedKcal)
+  const confirmedKcal = (Number.isFinite(overrideKcal) && overrideKcal > 0) ? Math.round(overrideKcal) : autoKcal
   const doc = {
     openid,
     date: payload.date,
@@ -422,27 +425,86 @@ function getDeficitTrend(payload, openid) {
   })
 }
 
+// ── Mock food database (kcal / carbG / proteinG / fatG per 100 g) ──
+const MOCK_FOOD_DB = {
+  '米饭': { kcal: 116, carbG: 25.6, proteinG: 2.6, fatG: 0.3, defaultG: 200 },
+  '鸡胸肉': { kcal: 133, carbG: 0, proteinG: 31, fatG: 1.2, defaultG: 150 },
+  '鸡蛋': { kcal: 144, carbG: 1.5, proteinG: 13.3, fatG: 9.5, defaultG: 100 },
+  '牛奶': { kcal: 54, carbG: 3.4, proteinG: 3.1, fatG: 3.2, defaultG: 250 },
+  '燕麦': { kcal: 367, carbG: 58.7, proteinG: 15, fatG: 6.7, defaultG: 50 },
+  '苹果': { kcal: 53, carbG: 12.3, proteinG: 0.2, fatG: 0.2, defaultG: 200 },
+  '咖啡': { kcal: 2, carbG: 0, proteinG: 0.1, fatG: 0, defaultG: 250 },
+  '奶茶': { kcal: 88, carbG: 12, proteinG: 1.5, fatG: 3.5, defaultG: 500 },
+  '沙拉': { kcal: 20, carbG: 3.6, proteinG: 1.3, fatG: 0.2, defaultG: 200 },
+  '豆腐': { kcal: 73, carbG: 1.5, proteinG: 8.1, fatG: 3.7, defaultG: 150 },
+  '西兰花': { kcal: 36, carbG: 5.2, proteinG: 3.5, fatG: 0.4, defaultG: 150 },
+  '牛肉': { kcal: 190, carbG: 0, proteinG: 26, fatG: 9, defaultG: 150 },
+  '三文鱼': { kcal: 208, carbG: 0, proteinG: 20, fatG: 13, defaultG: 120 },
+  '面条': { kcal: 137, carbG: 25, proteinG: 4.5, fatG: 1.6, defaultG: 200 },
+  '面包': { kcal: 265, carbG: 49, proteinG: 9, fatG: 3.3, defaultG: 80 },
+  '酸奶': { kcal: 72, carbG: 9.3, proteinG: 3.6, fatG: 2.5, defaultG: 200 },
+  '香蕉': { kcal: 93, carbG: 20.8, proteinG: 1.1, fatG: 0.2, defaultG: 120 },
+  '番茄': { kcal: 18, carbG: 3.9, proteinG: 0.9, fatG: 0.2, defaultG: 150 },
+  '白菜': { kcal: 17, carbG: 3.1, proteinG: 1.5, fatG: 0.2, defaultG: 150 },
+}
+
+function _parseTextItems(description) {
+  const matched = []
+  const desc = String(description)
+  for (const [name, info] of Object.entries(MOCK_FOOD_DB)) {
+    if (desc.includes(name)) {
+      const quantityG = info.defaultG
+      const ratio = quantityG / 100
+      matched.push({
+        foodName: name,
+        quantityG,
+        kcal: Math.round(info.kcal * ratio),
+        carbG: Math.round(info.carbG * ratio * 10) / 10,
+        proteinG: Math.round(info.proteinG * ratio * 10) / 10,
+        fatG: Math.round(info.fatG * ratio * 10) / 10,
+      })
+    }
+  }
+  if (matched.length === 0) {
+    matched.push({
+      foodName: '手动补充食物',
+      quantityG: 0,
+      kcal: 0,
+      carbG: 0,
+      proteinG: 0,
+      fatG: 0,
+    })
+  }
+  return matched
+}
+
 function aiTextEstimate(payload, openid) {
   if (!payload || !payload.description) {
     return Promise.resolve({ code: 400, data: null, message: 'description required' })
   }
   const desc = String(payload.description)
+  const items = _parseTextItems(desc)
+
+  // Backward-compat single estimate (first item or fallback)
+  const first = items[0]
   const estimate = {
-    foodName: desc.slice(0, 20),
-    kcal: 350,
-    carbG: 40,
-    proteinG: 20,
-    fatG: 12,
-    confidence: 0.6,
+    foodName: first.foodName,
+    kcal: first.kcal,
+    carbG: first.carbG,
+    proteinG: first.proteinG,
+    fatG: first.fatG,
+    confidence: first.foodName === '手动补充食物' ? 0.3 : 0.6,
   }
+
   return Promise.resolve({
     code: 0,
-    data: { estimate, message: 'mock estimate from cloud' },
+    data: { estimate, items, message: 'mock estimate from cloud' },
     message: 'ok',
   })
 }
 
 function aiPhotoEstimate(payload, openid) {
+  // Photo data is NOT persisted — only used for estimation in-memory
   const date = getBeijingDate()
   return ensureUser(openid).then((user) => {
     const quota = user.photoQuota || { freeDaily: 1, lastDate: '', freeUsedToday: 0 }
@@ -468,20 +530,48 @@ function aiPhotoEstimate(payload, openid) {
       }
     }
 
+    // Mock 2-3 items from photo recognition (random pick from common foods)
+    const mockPool = ['米饭', '鸡胸肉', '鸡蛋', '西兰花', '沙拉', '豆腐', '苹果', '酸奶']
+    const count = 2 + Math.floor(Math.random() * 2) // 2 or 3
+    const picked = []
+    const available = [...mockPool]
+    for (let i = 0; i < count && available.length > 0; i++) {
+      const idx = Math.floor(Math.random() * available.length)
+      picked.push(available.splice(idx, 1)[0])
+    }
+    const items = picked.map((name) => {
+      const info = MOCK_FOOD_DB[name]
+      const quantityG = info.defaultG
+      const ratio = quantityG / 100
+      return {
+        foodName: name,
+        quantityG,
+        kcal: Math.round(info.kcal * ratio),
+        carbG: Math.round(info.carbG * ratio * 10) / 10,
+        proteinG: Math.round(info.proteinG * ratio * 10) / 10,
+        fatG: Math.round(info.fatG * ratio * 10) / 10,
+      }
+    })
+
+    // Backward-compat single estimate (aggregate)
+    const totalKcal = items.reduce((s, it) => s + it.kcal, 0)
+    const estimate = {
+      foodName: items.map((it) => it.foodName).join('+'),
+      kcal: totalKcal,
+      carbG: Math.round(items.reduce((s, it) => s + it.carbG, 0) * 10) / 10,
+      proteinG: Math.round(items.reduce((s, it) => s + it.proteinG, 0) * 10) / 10,
+      fatG: Math.round(items.reduce((s, it) => s + it.fatG, 0) * 10) / 10,
+      confidence: 0.55,
+    }
+
     return db.collection('users').where({ openid }).update({ data: updateDoc }).then(() => {
       const newFreeRemaining = usedPoint ? freeRemaining : Math.max(0, freeRemaining - 1)
       const newPointBalance = usedPoint ? Math.max(0, pointBalance - 1) : pointBalance
       return {
         code: 0,
         data: {
-          estimate: {
-            foodName: '识别结果（mock）',
-            kcal: 420,
-            carbG: 50,
-            proteinG: 25,
-            fatG: 14,
-            confidence: 0.55,
-          },
+          estimate,
+          items,
           pointBalance: newPointBalance,
           freeRemaining: newFreeRemaining,
           usedPoint,
