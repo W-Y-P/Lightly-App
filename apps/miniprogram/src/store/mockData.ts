@@ -101,10 +101,10 @@ export interface CalendarDayData {
   weight: number | null
 }
 
-export function generateMockCalendar(): CalendarDayData[] {
+export function generateMockCalendar(days = 15): CalendarDayData[] {
   const result: CalendarDayData[] = []
   const now = new Date()
-  for (let i = 13; i >= 0; i--) {
+  for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

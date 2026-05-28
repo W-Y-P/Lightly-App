@@ -9,6 +9,27 @@ cloud.init({
 const db = cloud.database()
 const _ = db.command
 const $ = db.command.aggregate
+const CORE_COLLECTIONS = ['users', 'plans', 'meals', 'exercises', 'weights', 'pointsLedger', 'photoUsage']
+let coreCollectionsReady = null
+
+function isCollectionAlreadyExistsError(err) {
+  const text = `${err && err.errCode ? err.errCode : ''} ${err && err.errMsg ? err.errMsg : ''} ${err && err.message ? err.message : ''}`.toLowerCase()
+  return text.includes('already') || text.includes('collection exists') || text.includes('table exist')
+}
+
+function ensureCoreCollections() {
+  if (!coreCollectionsReady) {
+    coreCollectionsReady = Promise.all(
+      CORE_COLLECTIONS.map((name) =>
+        db.createCollection(name).catch((err) => {
+          if (isCollectionAlreadyExistsError(err)) return null
+          throw err
+        })
+      )
+    )
+  }
+  return coreCollectionsReady
+}
 
 function getOpenid() {
   const ctx = cloud.getWXContext()
@@ -776,6 +797,8 @@ exports.main = async (event = {}, context = {}) => {
     if (!action) {
       return { code: 400, data: null, message: 'action required' }
     }
+
+    await ensureCoreCollections()
 
     const handler = {
       authWechat,

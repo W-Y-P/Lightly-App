@@ -68,7 +68,7 @@ function makeEmptyRow(): MealRow {
 }
 
 /** 仅初始化一次的 mock fallback，保证每条数据稳定 */
-const FALLBACK_CALENDAR: CalendarDayData[] = generateMockCalendar()
+const FALLBACK_CALENDAR: CalendarDayData[] = generateMockCalendar(DAYS_COUNT)
 
 function weekdayShort(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00')
@@ -92,6 +92,10 @@ function recentDates(n: number): string[] {
     )
   }
   return result
+}
+
+function todayDateString(): string {
+  return recentDates(1)[0]
 }
 
 function mockToExtended(mock: CalendarDayData): ExtendedDayData {
@@ -170,6 +174,16 @@ export default function RecordPage() {
   const [weightSubmitting, setWeightSubmitting] = useState(false)
 
   const selected = calendarData[selectedIdx]
+
+  const getTargetDay = () => {
+    const fallbackDate = todayDateString()
+    const fallbackIdx = calendarData.findIndex((day) => day.date === fallbackDate)
+    return {
+      date: selected?.date ?? fallbackDate,
+      idx: selected ? selectedIdx : (fallbackIdx >= 0 ? fallbackIdx : Math.max(0, calendarData.length - 1)),
+      weight: selected?.weight ?? null,
+    }
+  }
 
   const refreshDay = useCallback(async (date: string, idx: number) => {
     const res = await getDailySummary(date)
@@ -395,7 +409,8 @@ export default function RecordPage() {
 
   // ── 确认提交 ──
   const handleMealConfirm = async () => {
-    if (!selected) return
+    if (mealLoading) return
+    const target = getTargetDay()
     const cleaned: MealItemInput[] = mealRows
       .filter((r) => r.foodName.trim() !== '')
       .map((r) => ({
@@ -413,20 +428,25 @@ export default function RecordPage() {
 
     setMealLoading(true)
     const body: CreateMealBody = {
-      date: selected.date,
+      date: target.date,
       mealSlot: activeMealSlot as CreateMealBody['mealSlot'],
       status: 'recorded',
       items: cleaned,
     }
-    const res = await createMeal(body)
-    if (res.ok) {
-      Taro.showToast({ title: '已记录', icon: 'success', duration: 1500 })
-      closeMealModal()
-      refreshDay(selected.date, selectedIdx)
-    } else {
+    try {
+      const res = await createMeal(body)
+      if (res.ok) {
+        Taro.showToast({ title: '已记录', icon: 'success', duration: 1500 })
+        closeMealModal()
+        refreshDay(target.date, target.idx)
+      } else {
+        Taro.showToast({ title: '记录失败，请重试', icon: 'none' })
+      }
+    } catch {
       Taro.showToast({ title: '记录失败，请重试', icon: 'none' })
+    } finally {
+      setMealLoading(false)
     }
-    setMealLoading(false)
   }
 
   // ── 运动弹窗 ──
@@ -479,7 +499,8 @@ export default function RecordPage() {
   }
 
   const handleExerciseConfirm = async () => {
-    if (!selected) return
+    if (exerciseSubmitting) return
+    const target = getTargetDay()
     const valid = exerciseRows.filter((r) => parseFloat(r.durationMin) > 0)
     if (valid.length === 0) {
       Taro.showToast({ title: '请至少添加一项运动', icon: 'none' })
@@ -487,24 +508,29 @@ export default function RecordPage() {
     }
     setExerciseSubmitting(true)
     let allOk = true
-    for (const row of valid) {
-      const body: CreateExerciseBody = {
-        date: selected.date,
-        exerciseType: row.exerciseType,
-        durationMin: parseFloat(row.durationMin) || 30,
-        weightKg: selected.weight ?? 72.6,
-        confirmedKcal: parseFloat(row.confirmedKcal) || 0,
+    try {
+      for (const row of valid) {
+        const body: CreateExerciseBody = {
+          date: target.date,
+          exerciseType: row.exerciseType,
+          durationMin: parseFloat(row.durationMin) || 30,
+          weightKg: target.weight ?? 72.6,
+          confirmedKcal: parseFloat(row.confirmedKcal) || 0,
+        }
+        const res = await createExercise(body)
+        if (!res.ok) allOk = false
       }
-      const res = await createExercise(body)
-      if (!res.ok) allOk = false
+      closeExerciseModal()
+      if (allOk) {
+        Taro.showToast({ title: '已记录运动', icon: 'success', duration: 1500 })
+      } else {
+        Taro.showToast({ title: '部分记录失败', icon: 'none' })
+      }
+      refreshDay(target.date, target.idx)
+    } catch {
+      Taro.showToast({ title: '记录失败，请重试', icon: 'none' })
+      setExerciseSubmitting(false)
     }
-    closeExerciseModal()
-    if (allOk) {
-      Taro.showToast({ title: '已记录运动', icon: 'success', duration: 1500 })
-    } else {
-      Taro.showToast({ title: '部分记录失败', icon: 'none' })
-    }
-    refreshDay(selected.date, selectedIdx)
   }
 
   const handleRecordExercise = (exerciseType: string) => {
@@ -526,7 +552,8 @@ export default function RecordPage() {
   }
 
   const handleWeightConfirm = async () => {
-    if (!selected) return
+    if (weightSubmitting) return
+    const target = getTargetDay()
     const val = parseFloat(weightValue)
     if (!val || val <= 0) {
       Taro.showToast({ title: '请输入有效体重', icon: 'none' })
@@ -534,17 +561,24 @@ export default function RecordPage() {
     }
     setWeightSubmitting(true)
     const ctx = weighingContext === 'morning' ? '早晨（空腹）' : '晚上（饭后）'
-    const res = await createWeight({ date: selected.date, weightKg: val, weighingContext: ctx })
-    if (res.ok) {
-      setCalendarData((prev) => {
-        const next = [...prev]
-        next[selectedIdx] = { ...next[selectedIdx], weight: val }
-        return next
-      })
-      Taro.showToast({ title: '已记录体重', icon: 'success', duration: 1500 })
-      closeWeightModal()
-      refreshDay(selected.date, selectedIdx)
-    } else {
+    try {
+      const res = await createWeight({ date: target.date, weightKg: val, weighingContext: ctx })
+      if (res.ok) {
+        setCalendarData((prev) => {
+          const next = [...prev]
+          if (next[target.idx]) {
+            next[target.idx] = { ...next[target.idx], weight: val }
+          }
+          return next
+        })
+        Taro.showToast({ title: '已记录体重', icon: 'success', duration: 1500 })
+        closeWeightModal()
+        refreshDay(target.date, target.idx)
+      } else {
+        Taro.showToast({ title: '记录失败，请重试', icon: 'none' })
+        setWeightSubmitting(false)
+      }
+    } catch {
       Taro.showToast({ title: '记录失败，请重试', icon: 'none' })
       setWeightSubmitting(false)
     }
