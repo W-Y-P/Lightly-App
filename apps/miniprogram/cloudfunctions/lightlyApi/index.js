@@ -1,4 +1,6 @@
 const cloud = require('wx-server-sdk')
+const http = require('http')
+const https = require('https')
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV,
@@ -448,6 +450,166 @@ const MOCK_FOOD_DB = {
   '白菜': { kcal: 17, carbG: 3.1, proteinG: 1.5, fatG: 0.2, defaultG: 150 },
 }
 
+function getAiConfig() {
+  const baseUrl = (process.env.AI_BASE_URL || process.env.MIMO_BASE_URL || '').replace(/\/+$/, '')
+  const apiKey = process.env.AI_API_KEY || process.env.MIMO_API_KEY || ''
+  const model = process.env.AI_MODEL || process.env.MIMO_MODEL || 'mimo-v2.5'
+  return { baseUrl, apiKey, model, enabled: Boolean(baseUrl && apiKey) }
+}
+
+function safeJsonParse(text) {
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch (err) {
+    const match = String(text).match(/\{[\s\S]*\}/)
+    if (!match) return null
+    try {
+      return JSON.parse(match[0])
+    } catch {
+      return null
+    }
+  }
+}
+
+function normalizeMealItems(rawItems) {
+  if (!Array.isArray(rawItems)) return []
+  return rawItems
+    .map((item) => ({
+      foodName: String(item.foodName || item.name || item.food || '').slice(0, 40),
+      quantityG: Math.max(0, Math.round(Number(item.quantityG || item.grams || item.weightG || 0))),
+      kcal: Math.max(0, Math.round(Number(item.kcal || item.calories || item.energyKcal || 0))),
+      carbG: Math.max(0, Math.round(Number(item.carbG || item.carbsG || item.carbohydrateG || 0) * 10) / 10),
+      proteinG: Math.max(0, Math.round(Number(item.proteinG || item.protein || 0) * 10) / 10),
+      fatG: Math.max(0, Math.round(Number(item.fatG || item.fat || 0) * 10) / 10),
+    }))
+    .filter((item) => item.foodName)
+    .slice(0, 12)
+}
+
+function aggregateEstimate(items, confidence) {
+  const safeItems = items.length ? items : _parseTextItems('')
+  return {
+    foodName: safeItems.map((it) => it.foodName).join('+').slice(0, 40),
+    kcal: Math.round(safeItems.reduce((s, it) => s + (it.kcal || 0), 0)),
+    carbG: Math.round(safeItems.reduce((s, it) => s + (it.carbG || 0), 0) * 10) / 10,
+    proteinG: Math.round(safeItems.reduce((s, it) => s + (it.proteinG || 0), 0) * 10) / 10,
+    fatG: Math.round(safeItems.reduce((s, it) => s + (it.fatG || 0), 0) * 10) / 10,
+    confidence,
+  }
+}
+
+function callOpenAICompatible(messages) {
+  const config = getAiConfig()
+  if (!config.enabled) {
+    return Promise.reject(new Error('ai_not_configured'))
+  }
+
+  const endpoint = config.baseUrl.endsWith('/chat/completions')
+    ? config.baseUrl
+    : `${config.baseUrl}/chat/completions`
+  const url = new URL(endpoint)
+  const transport = url.protocol === 'http:' ? http : https
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    return Promise.reject(new Error('ai_invalid_base_url'))
+  }
+  const body = JSON.stringify({
+    model: config.model,
+    messages,
+    temperature: 0.1,
+  })
+
+  const options = {
+    method: 'POST',
+    hostname: url.hostname,
+    path: `${url.pathname}${url.search}`,
+    port: url.port || (url.protocol === 'https:' ? 443 : 80),
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body),
+    },
+  }
+
+  return new Promise((resolve, reject) => {
+    const req = transport.request(options, (res) => {
+      let data = ''
+      res.setEncoding('utf8')
+      res.on('data', (chunk) => { data += chunk })
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`ai_http_${res.statusCode}`))
+          return
+        }
+        const json = safeJsonParse(data)
+        const message = json && json.choices && json.choices[0] && json.choices[0].message
+        const rawContent = message && message.content
+        const content = Array.isArray(rawContent)
+          ? rawContent.map((part) => (typeof part === 'string' ? part : (part && part.text) || '')).join('')
+          : rawContent
+        const parsed = safeJsonParse(content)
+        if (!parsed) {
+          reject(new Error('ai_invalid_json'))
+          return
+        }
+        resolve(parsed)
+      })
+    })
+    req.setTimeout(20000, () => {
+      req.destroy(new Error('ai_timeout'))
+    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+}
+
+function buildMealJsonPrompt(extraInstruction) {
+  return [
+    '你是减脂记录应用中的食物热量估算助手。',
+    '请只返回 JSON，不要 Markdown，不要解释。',
+    'JSON 格式必须是：{"items":[{"foodName":"食物名","quantityG":克数,"kcal":千卡,"carbG":碳水克数,"proteinG":蛋白质克数,"fatG":脂肪克数}],"message":"一句温和提示"}。',
+    '估算要保守、日常化，适合中国区饮食；无法确定时给出合理近似值，避免医学诊断或绝对健康承诺。',
+    extraInstruction || '',
+  ].join('\n')
+}
+
+function estimateMealTextWithAi(description) {
+  return callOpenAICompatible([
+    { role: 'system', content: buildMealJsonPrompt('根据用户自然语言描述拆分每种食物。') },
+    { role: 'user', content: `用户描述：${description}` },
+  ]).then((parsed) => {
+    const items = normalizeMealItems(parsed.items)
+    if (!items.length) throw new Error('ai_empty_items')
+    return {
+      items,
+      estimate: aggregateEstimate(items, 0.72),
+      message: parsed.message || '已根据描述生成估算，可继续手动调整。',
+    }
+  })
+}
+
+function estimateMealPhotoWithAi(imageBase64, mimeType) {
+  return callOpenAICompatible([
+    { role: 'system', content: buildMealJsonPrompt('根据图片识别可见食物和份量；只估算食物，不保存图片。') },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: '请识别这张餐食图片中的食物、克数、热量和三大营养素。' },
+        { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } },
+      ],
+    },
+  ]).then((parsed) => {
+    const items = normalizeMealItems(parsed.items)
+    if (!items.length) throw new Error('ai_empty_items')
+    return {
+      items,
+      estimate: aggregateEstimate(items, 0.68),
+      message: parsed.message || '已根据图片生成估算，请确认后再入账。',
+    }
+  })
+}
+
 function _parseTextItems(description) {
   const matched = []
   const desc = String(description)
@@ -478,28 +640,58 @@ function _parseTextItems(description) {
   return matched
 }
 
+function mockTextEstimate(description) {
+  const items = _parseTextItems(description)
+  const estimate = aggregateEstimate(items, items[0].foodName === '手动补充食物' ? 0.3 : 0.6)
+  return { estimate, items, message: 'mock estimate from cloud' }
+}
+
+function mockPhotoEstimate() {
+  const mockPool = ['米饭', '鸡胸肉', '鸡蛋', '西兰花', '沙拉', '豆腐', '苹果', '酸奶']
+  const count = 2 + Math.floor(Math.random() * 2)
+  const picked = []
+  const available = [...mockPool]
+  for (let i = 0; i < count && available.length > 0; i++) {
+    const idx = Math.floor(Math.random() * available.length)
+    picked.push(available.splice(idx, 1)[0])
+  }
+  const items = picked.map((name) => {
+    const info = MOCK_FOOD_DB[name]
+    const quantityG = info.defaultG
+    const ratio = quantityG / 100
+    return {
+      foodName: name,
+      quantityG,
+      kcal: Math.round(info.kcal * ratio),
+      carbG: Math.round(info.carbG * ratio * 10) / 10,
+      proteinG: Math.round(info.proteinG * ratio * 10) / 10,
+      fatG: Math.round(info.fatG * ratio * 10) / 10,
+    }
+  })
+  return {
+    items,
+    estimate: aggregateEstimate(items, 0.55),
+    message: 'mock photo estimate from cloud',
+  }
+}
+
 function aiTextEstimate(payload, openid) {
   if (!payload || !payload.description) {
     return Promise.resolve({ code: 400, data: null, message: 'description required' })
   }
   const desc = String(payload.description)
-  const items = _parseTextItems(desc)
 
-  // Backward-compat single estimate (first item or fallback)
-  const first = items[0]
-  const estimate = {
-    foodName: first.foodName,
-    kcal: first.kcal,
-    carbG: first.carbG,
-    proteinG: first.proteinG,
-    fatG: first.fatG,
-    confidence: first.foodName === '手动补充食物' ? 0.3 : 0.6,
-  }
-
-  return Promise.resolve({
+  const config = getAiConfig()
+  const estimator = config.enabled ? estimateMealTextWithAi(desc) : Promise.resolve(mockTextEstimate(desc))
+  return estimator.then((data) => ({
     code: 0,
-    data: { estimate, items, message: 'mock estimate from cloud' },
+    data: { ...data, provider: config.enabled ? 'mimo' : 'mock', model: config.enabled ? config.model : 'mock' },
     message: 'ok',
+  })).catch((err) => {
+    if (String(err.message || err) === 'ai_not_configured') {
+      return { code: 0, data: { ...mockTextEstimate(desc), provider: 'mock', model: 'mock' }, message: 'ok' }
+    }
+    return { code: 503, data: null, message: `ai estimate failed: ${err.message || 'unknown'}` }
   })
 }
 
@@ -530,57 +722,32 @@ function aiPhotoEstimate(payload, openid) {
       }
     }
 
-    // Mock 2-3 items from photo recognition (random pick from common foods)
-    const mockPool = ['米饭', '鸡胸肉', '鸡蛋', '西兰花', '沙拉', '豆腐', '苹果', '酸奶']
-    const count = 2 + Math.floor(Math.random() * 2) // 2 or 3
-    const picked = []
-    const available = [...mockPool]
-    for (let i = 0; i < count && available.length > 0; i++) {
-      const idx = Math.floor(Math.random() * available.length)
-      picked.push(available.splice(idx, 1)[0])
-    }
-    const items = picked.map((name) => {
-      const info = MOCK_FOOD_DB[name]
-      const quantityG = info.defaultG
-      const ratio = quantityG / 100
-      return {
-        foodName: name,
-        quantityG,
-        kcal: Math.round(info.kcal * ratio),
-        carbG: Math.round(info.carbG * ratio * 10) / 10,
-        proteinG: Math.round(info.proteinG * ratio * 10) / 10,
-        fatG: Math.round(info.fatG * ratio * 10) / 10,
-      }
-    })
+    const config = getAiConfig()
+    const imageBase64 = payload && payload.imageBase64
+    const mimeType = (payload && payload.mimeType) || 'image/jpeg'
+    const estimator = config.enabled && imageBase64
+      ? estimateMealPhotoWithAi(imageBase64, mimeType)
+      : Promise.resolve(mockPhotoEstimate())
 
-    // Backward-compat single estimate (aggregate)
-    const totalKcal = items.reduce((s, it) => s + it.kcal, 0)
-    const estimate = {
-      foodName: items.map((it) => it.foodName).join('+'),
-      kcal: totalKcal,
-      carbG: Math.round(items.reduce((s, it) => s + it.carbG, 0) * 10) / 10,
-      proteinG: Math.round(items.reduce((s, it) => s + it.proteinG, 0) * 10) / 10,
-      fatG: Math.round(items.reduce((s, it) => s + it.fatG, 0) * 10) / 10,
-      confidence: 0.55,
-    }
-
-    return db.collection('users').where({ openid }).update({ data: updateDoc }).then(() => {
+    return estimator.then((aiResult) => db.collection('users').where({ openid }).update({ data: updateDoc }).then(() => {
       const newFreeRemaining = usedPoint ? freeRemaining : Math.max(0, freeRemaining - 1)
       const newPointBalance = usedPoint ? Math.max(0, pointBalance - 1) : pointBalance
       return {
         code: 0,
         data: {
-          estimate,
-          items,
+          estimate: aiResult.estimate,
+          items: aiResult.items,
           pointBalance: newPointBalance,
           freeRemaining: newFreeRemaining,
           usedPoint,
-          message: 'mock photo estimate from cloud',
-          note: '未接入真实识别模型，仅演示额度与积分扣减',
+          message: aiResult.message,
+          note: config.enabled ? '照片仅用于本次识别，不保存原图。' : '未配置真实识别模型，仅演示额度与积分扣减。',
+          provider: config.enabled ? 'mimo' : 'mock',
+          model: config.enabled ? config.model : 'mock',
         },
         message: 'ok',
       }
-    })
+    })).catch((err) => ({ code: 503, data: null, message: `ai photo estimate failed: ${err.message || 'unknown'}` }))
   })
 }
 
