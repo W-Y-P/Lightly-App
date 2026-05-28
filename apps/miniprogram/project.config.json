@@ -1,8 +1,8 @@
 {
   "miniprogramRoot": "dist/",
-  "projectname": "fat-loss-miniprogram",
+  "projectname": "miniprogram-1",
   "description": "减脂助手微信小程序",
-  "appid": "touristappid",
+  "appid": "wxb53c58a019395d79",
   "setting": {
     "urlCheck": true,
     "es6": false,

@@ -8,7 +8,7 @@
  * If you need to pin a specific environment (for example production), set
  * `cloudEnvId` to that environment id (e.g. 'prod-xxx').
  */
-export const cloudEnvId = ''
+export const cloudEnvId = 'cloud1-d0gkjbgmncb3b9f04'
 
 export const useDynamicCloudEnv = false
 
