@@ -104,10 +104,27 @@ function isCloudAvailable(): boolean {
   }
 }
 
-function cloudRequest<T>(action: string, payload?: unknown): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+function isRetriableCloudError(err: any): boolean {
+  const text = `${err?.errMsg || ''} ${err?.message || ''} ${String(err || '')}`.toLowerCase()
+  return text.includes('timeout') || text.includes('timed out') || text.includes('-504')
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function callCloudFunctionOnce(action: string, payload?: unknown) {
   return (wx.cloud as any).callFunction({
     name: CLOUD_FUNCTION_NAME,
     data: { action, payload: payload || {} },
+  })
+}
+
+function cloudRequest<T>(action: string, payload?: unknown): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  return callCloudFunctionOnce(action, payload).catch(async (err: any) => {
+    if (!isRetriableCloudError(err)) throw err
+    await sleep(350)
+    return callCloudFunctionOnce(action, payload)
   }).then((res: any) => {
     const result = res && res.result
     if (!result) {

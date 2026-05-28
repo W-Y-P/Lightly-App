@@ -135,21 +135,21 @@ function authWechat(payload, openid) {
     return { code: 400, data: null, message: 'code required' }
   }
   const userId = `wx_${openid || payload.code.slice(0, 16)}`
-  return ensureUser(openid || userId).then(() => ({
+  return {
     code: 0,
     data: { token: `cloud_${userId}`, userId, isNew: false },
     message: 'ok',
-  }))
+  }
 }
 
 function authGuest(payload, openid) {
   const fallbackOpenid = openid || `guest_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
   const userId = `guest_${fallbackOpenid.slice(0, 16)}`
-  return ensureUser(fallbackOpenid).then(() => ({
+  return {
     code: 0,
     data: { token: `cloud_${userId}`, userId, isNew: true },
     message: 'ok',
-  }))
+  }
 }
 
 function createPlan(payload, openid) {

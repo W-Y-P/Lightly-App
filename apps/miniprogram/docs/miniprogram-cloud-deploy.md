@@ -32,6 +32,8 @@
 
 - `apps/miniprogram/cloudfunctions/lightlyApi`
 
+`apps/miniprogram/cloudbaserc.json` 已把 `lightlyApi` 云函数超时时间设置为 20 秒，避免真实大模型识别在默认 3 秒限制下超时。`lightlyApi/config.json` 也保留同样配置，兼容开发者工具侧的文件展示；最终以云端函数详情显示的 `timeout` 为准。
+
 部署步骤：
 
 1. 在微信开发者工具中打开项目。
@@ -51,6 +53,25 @@
 ```
 
 CLI 需要先在微信开发者工具「设置 -> 安全设置」中开启服务端口；这是本机开发工具能力，只用于部署和自动化调试，生产小程序不依赖它。
+
+如果云函数已创建，但开发者工具 CLI 的 `info` 仍显示 `timeout` 为 `3`，说明右键上传/开发者工具 CLI 没有同步函数配置。使用 CloudBase CLI 在 `apps/miniprogram` 目录执行：
+
+```bash
+npx -y -p @cloudbase/cli@latest tcb login
+npx -y -p @cloudbase/cli@latest tcb fn deploy lightlyApi \
+  -e cloud1-d0gkjbgmncb3b9f04 \
+  --dir cloudfunctions/lightlyApi \
+  --runtime Nodejs16.13 \
+  --force
+```
+
+部署后用下面命令确认云端配置：
+
+```bash
+npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b9f04
+```
+
+若不使用 CloudBase CLI，也可以在云开发控制台中打开 `lightlyApi`，把函数超时时间手动改为 20 秒或以上。
 
 ## 4. 配置大模型环境变量
 

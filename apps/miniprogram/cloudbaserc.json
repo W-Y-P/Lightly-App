@@ -1,0 +1,13 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "cloud1-d0gkjbgmncb3b9f04",
+  "functionRoot": "cloudfunctions",
+  "functions": [
+    {
+      "name": "lightlyApi",
+      "timeout": 20,
+      "runtime": "Nodejs16.13",
+      "handler": "index.main"
+    }
+  ]
+}
