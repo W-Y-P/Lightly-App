@@ -9,14 +9,14 @@ export default defineAppConfig({
   ],
   window: {
     backgroundTextStyle: 'light',
-    navigationBarBackgroundColor: '#E8F5E9',
+    navigationBarBackgroundColor: '#f4f7f3',
     navigationBarTitleText: '减脂助手',
     navigationBarTextStyle: 'black',
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#f4f7f3',
   },
   tabBar: {
     color: '#9AA0A6',
-    selectedColor: '#21B96B',
+    selectedColor: '#168A5B',
     backgroundColor: '#ffffff',
     borderStyle: 'white',
     list: [

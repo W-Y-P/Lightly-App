@@ -1,72 +1,20 @@
 .macro-card {
-  margin: 16px 32px 0;
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-top: 18rpx;
+  padding: 24rpx;
+  background: var(--surface);
+  border: 1rpx solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
-.macro-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.macro-icon {
-  font-size: 26px;
-  margin-right: 10px;
-}
-
-.macro-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #333333;
-}
-
-.macro-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.macro-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.macro-item-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.macro-name {
-  font-size: 24px;
-  color: #333333;
-  font-weight: 500;
-}
-
-.macro-amount {
-  font-size: 22px;
-  color: #666666;
-}
-
-.macro-bar-bg {
-  height: 14px;
-  background: #F5F5F5;
-  border-radius: 7px;
-  overflow: hidden;
-}
-
-.macro-bar-fill {
-  height: 14px;
-  border-radius: 7px;
-  transition: width 0.3s ease;
-}
-
-.macro-pct {
-  font-size: 20px;
-  font-weight: 600;
-  text-align: right;
-  margin-top: 4px;
-}
+.macro-header { display: flex; align-items: baseline; justify-content: space-between; }
+.macro-title { color: var(--ink); font-size: 27rpx; font-weight: 720; }
+.macro-subtitle { color: var(--muted); font-size: 22rpx; }
+.macro-list { display: flex; gap: 22rpx; margin-top: 22rpx; }
+.macro-item { min-width: 0; flex: 1; }
+.macro-item-header { display: flex; flex-direction: column; gap: 6rpx; }
+.macro-name { color: var(--ink); font-size: 22rpx; font-weight: 650; }
+.macro-amount { color: var(--muted); font-size: 21rpx; white-space: nowrap; }
+.macro-bar-bg { height: 10rpx; margin-top: 12rpx; overflow: hidden; background: #e8eeea; border-radius: 5rpx; }
+.macro-bar-fill { height: 100%; border-radius: 5rpx; }
+.macro-pct { display: block; margin-top: 8rpx; color: var(--muted); font-size: 20rpx; }

@@ -1,9 +1,8 @@
 /**
  * Cloud environment configuration.
  *
- * Keep cloud disabled by default so the demo can run under touristappid or a
- * DevTools project without CloudBase enabled. For a real WeChat cloud deploy,
- * either set `cloudEnvId` or explicitly enable dynamic environment mode.
+ * The checked-in mini program targets the project's CloudBase environment.
+ * For another environment, replace `cloudEnvId` or enable dynamic mode.
  *
  * If you need to pin a specific environment (for example production), set
  * `cloudEnvId` to that environment id (e.g. 'prod-xxx').

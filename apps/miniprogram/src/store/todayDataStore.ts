@@ -1,10 +1,36 @@
 /**
  * Reactive store for Today page data.
- * Components use useTodayData() hook to get live data (API or mock fallback).
+ * Components use useTodayData() hook to get live API data.
  */
 import { useState, useEffect } from 'react'
-import { mockTodayData } from './mockData'
-import type { MealRecord, NutrientProgress, TimelineItem } from './mockData'
+
+interface MealRecord {
+  id: string
+  name: string
+  emoji: string
+  calories: number
+  recorded: boolean
+  status?: 'recorded' | 'skipped' | 'fasting' | 'unrecorded'
+  time?: string
+  items?: string[]
+}
+
+interface NutrientProgress {
+  name: string
+  current: number
+  target: number
+  unit: string
+  color: string
+}
+
+interface TimelineItem {
+  id: string
+  time: string
+  meal: string
+  emoji: string
+  calories: number
+  items: string[]
+}
 
 export interface EntitlementInfo {
   pointBalance: number
@@ -41,11 +67,45 @@ export interface TodayStoreData {
   entitlement: EntitlementInfo | null
 }
 
-let _data: TodayStoreData = {
-  ...mockTodayData,
-  apiLoaded: false,
-  entitlement: null,
+function createEmptyTodayData(): TodayStoreData {
+  return {
+    date: '',
+    remainingCalories: 0,
+    suggestedRange: { min: 0, max: 0 },
+    consumed: 0,
+    baseExpenditure: 0,
+    exerciseCalories: 0,
+    targetGap: 0,
+    targetIntake: 0,
+    meals: [
+      { id: 'breakfast', name: '早餐', emoji: '', calories: 0, recorded: false },
+      { id: 'lunch', name: '午餐', emoji: '', calories: 0, recorded: false },
+      { id: 'dinner', name: '晚餐', emoji: '', calories: 0, recorded: false },
+      { id: 'snack', name: '其它', emoji: '', calories: 0, recorded: false },
+      { id: 'drink', name: '饮品', emoji: '', calories: 0, recorded: false },
+    ],
+    exerciseCaloriesTotal: 0,
+    exerciseDuration: 0,
+    exerciseType: '尚未记录',
+    consecutiveDays: 0,
+    totalStars: 0,
+    currentWeight: 0,
+    weightUnit: 'kg',
+    weightTrend: [],
+    nutrients: [
+      { name: '碳水化合物', current: 0, target: 0, unit: 'g', color: '#168a5b' },
+      { name: '蛋白质', current: 0, target: 0, unit: 'g', color: '#3d83b8' },
+      { name: '脂肪', current: 0, target: 0, unit: 'g', color: '#d7921b' },
+    ],
+    timeline: [],
+    tip: '记录饮食和运动后，这里会给出温和的当日提醒。',
+    advice: '待完整记录：至少记录两餐后生成今日建议。',
+    apiLoaded: false,
+    entitlement: null,
+  }
 }
+
+let _data: TodayStoreData = createEmptyTodayData()
 let _listeners: Set<() => void> = new Set()
 
 function notify() {
@@ -58,9 +118,9 @@ export function setTodayData(patch: Partial<TodayStoreData>) {
   notify()
 }
 
-/** Reset store to mock defaults (used on logout). */
+/** Reset store to an empty state (used on logout). */
 export function resetTodayData() {
-  _data = { ...mockTodayData, apiLoaded: false, entitlement: null }
+  _data = createEmptyTodayData()
   notify()
 }
 

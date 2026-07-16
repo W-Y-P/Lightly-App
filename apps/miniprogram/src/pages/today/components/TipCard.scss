@@ -1,30 +1,12 @@
 .tip-card {
-  margin: 16px 32px 0;
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-top: 18rpx;
+  padding: 22rpx 24rpx;
+  background: var(--coral-soft);
+  border: 1rpx solid #f2d8cf;
+  border-radius: 20rpx;
 }
 
-.tip-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.tip-icon {
-  font-size: 26px;
-  margin-right: 10px;
-}
-
-.tip-title {
-  font-size: 26px;
-  font-weight: 600;
-  color: #333333;
-}
-
-.tip-text {
-  font-size: 24px;
-  color: #666666;
-  line-height: 1.6;
-}
+.tip-header { display: flex; align-items: center; gap: 10rpx; }
+.tip-icon { display: flex; align-items: center; justify-content: center; width: 28rpx; height: 28rpx; color: var(--coral); font-size: 18rpx; font-weight: 700; border: 2rpx solid var(--coral); border-radius: 50%; text-align: center; }
+.tip-title { color: #99513e; font-size: 24rpx; font-weight: 700; }
+.tip-text { display: block; margin-top: 10rpx; color: #805d53; font-size: 22rpx; line-height: 1.55; }

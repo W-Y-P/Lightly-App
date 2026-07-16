@@ -54,7 +54,7 @@ export default function QuickActionCards() {
     <View className='action-cards'>
       <View className='action-card' onClick={handleWeight}>
         <View className='action-icon-circle action-icon--weight'>
-          <Text className='action-icon'>⚖️</Text>
+          <Text className='action-icon'>kg</Text>
         </View>
         <Text className='action-title'>体重打卡</Text>
         <Text className='action-subtitle'>记录今日体重，追踪变化趋势</Text>
@@ -64,7 +64,7 @@ export default function QuickActionCards() {
       </View>
       <View className='action-card' onClick={handlePhoto}>
         <View className='action-icon-circle action-icon--photo'>
-          <Text className='action-icon'>📸</Text>
+          <View className='action-camera-lens' />
         </View>
         <Text className='action-title'>AI 拍照识别</Text>
         <Text className='action-subtitle'>拍照识别食物热量，更快更准记录</Text>

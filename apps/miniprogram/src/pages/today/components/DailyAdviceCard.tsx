@@ -9,7 +9,7 @@ export default function DailyAdviceCard() {
     <View className='advice-card'>
       <View className='advice-header'>
         <View className='advice-icon-circle'>
-          <Text className='advice-icon'>✨</Text>
+          <Text className='advice-icon'>✓</Text>
         </View>
         <Text className='advice-title'>今日总结与建议</Text>
       </View>

@@ -7,8 +7,7 @@ export default function HeaderSection() {
   const { date } = useTodayData()
 
   const handleCalendar = () => {
-    console.log('open calendar')
-    Taro.showToast({ title: '打卡日历', icon: 'none' })
+    Taro.switchTab({ url: '/pages/record/index' })
   }
 
   return (
@@ -21,7 +20,9 @@ export default function HeaderSection() {
         </View>
       </View>
       <View className='header-calendar-btn' onClick={handleCalendar}>
-        <Text className='header-calendar-icon'>📅</Text>
+        <View className='header-calendar-icon'>
+          <View className='header-calendar-line' />
+        </View>
         <Text className='header-calendar-text'>打卡日历</Text>
       </View>
     </View>

@@ -9,7 +9,7 @@ export default function StarRewardCard() {
     <View className='star-card'>
       <View className='star-header'>
         <View className='star-icon-circle'>
-          <Text className='star-icon'>⭐</Text>
+          <Text className='star-icon'>★</Text>
         </View>
         <Text className='star-title'>今日之星</Text>
       </View>
@@ -24,7 +24,7 @@ export default function StarRewardCard() {
         </View>
       </View>
       <View className='star-encourage'>
-        <Text className='star-encourage-text'>🎉 坚持就是胜利！</Text>
+        <Text className='star-encourage-text'>达成 80% 且记录两餐即可获得</Text>
       </View>
     </View>
   )

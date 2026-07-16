@@ -1,50 +1,78 @@
-.meal-cards {
-  padding: 0 32px;
-  margin-top: 16px;
-}
+.meal-cards { margin-top: 18rpx; }
 
 .meal-cards-row {
   display: flex;
-  gap: 10px;
+  gap: 10rpx;
 }
 
 .meal-card {
-  flex: 1;
-  min-width: 0;
-  background: #ffffff;
-  border-radius: 20px;
-  padding: 16px 0;
+  position: relative;
   display: flex;
+  min-width: 0;
+  min-height: 168rpx;
+  flex: 1;
   flex-direction: column;
   align-items: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
+  justify-content: center;
+  padding: 14rpx 4rpx 12rpx;
+  background: var(--surface);
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  box-shadow: 0 6rpx 18rpx rgba(31, 67, 47, 0.05);
 }
 
-.meal-card--recorded {
-  border: 2px solid #C8E6C9;
+.meal-card:active { opacity: 0.68; transform: translateY(2rpx); }
+
+.meal-card-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50rpx;
+  height: 50rpx;
+  background: var(--surface-soft);
+  border-radius: 50%;
 }
 
-.meal-card-emoji {
-  font-size: 36px;
-  margin-bottom: 6px;
+.meal-card-mark-text {
+  color: var(--brand-strong);
+  font-size: 23rpx;
+  font-weight: 700;
 }
 
 .meal-card-name {
-  font-size: 20px;
-  color: #333333;
-  font-weight: 600;
-  margin-bottom: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  padding: 0 4px;
-  box-sizing: border-box;
+  margin-top: 10rpx;
+  color: var(--ink);
+  font-size: 23rpx;
+  font-weight: 650;
 }
 
 .meal-card-kcal {
-  font-size: 18px;
-  color: #999999;
+  max-width: 100%;
+  margin-top: 6rpx;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 20rpx;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.meal-card-status {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+  width: 10rpx;
+  height: 10rpx;
+  background: #d5ddd8;
+  border-radius: 50%;
+}
+
+.meal-card-status--recorded { background: var(--brand); }
+.meal-card-status--skipped { background: var(--amber); }
+.meal-card-status--fasting { background: var(--blue); }
+
+.meal-card--skipped .meal-card-mark { background: var(--amber-soft); }
+.meal-card--skipped .meal-card-mark-text,
+.meal-card--skipped .meal-card-kcal { color: #8b5d0f; }
+.meal-card--fasting .meal-card-mark { background: var(--blue-soft); }
+.meal-card--fasting .meal-card-mark-text,
+.meal-card--fasting .meal-card-kcal { color: #28658f; }

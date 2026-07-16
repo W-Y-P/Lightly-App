@@ -1,84 +1,93 @@
 .exercise-card {
-  background: #ffffff;
-  border-radius: 28px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  padding: 24rpx;
+  background: var(--surface);
+  border: 1rpx solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
+
+.exercise-card:active { opacity: 0.75; }
 
 .exercise-header {
   display: flex;
   align-items: center;
-  margin-bottom: 16px;
+  gap: 12rpx;
 }
 
 .exercise-icon-circle {
-  width: 48px;
-  height: 48px;
+  position: relative;
+  width: 38rpx;
+  height: 38rpx;
+  background: var(--brand-soft);
   border-radius: 50%;
-  background: #E3F2FD;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  flex-shrink: 0;
 }
 
-.exercise-icon {
-  font-size: 28px;
+.exercise-icon-line {
+  position: absolute;
+  top: 18rpx;
+  left: 8rpx;
+  width: 22rpx;
+  height: 4rpx;
+  background: var(--brand);
+  border-radius: 2rpx;
+  transform: rotate(-32deg);
 }
 
 .exercise-title {
-  font-size: 26px;
-  font-weight: 600;
-  color: #333333;
+  flex: 1;
+  color: var(--ink);
+  font-size: 27rpx;
+  font-weight: 700;
 }
+
+.exercise-link { color: var(--brand); font-size: 23rpx; }
 
 .exercise-stats {
   display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding: 12px 0;
+  align-items: stretch;
+  margin-top: 28rpx;
 }
 
 .exercise-stat {
   display: flex;
-  flex-direction: column;
-  align-items: center;
   min-width: 0;
   flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .exercise-stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #2196F3;
-  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 28rpx;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.exercise-stat-unit {
-  font-size: 20px;
-  color: #999999;
-  margin-top: 2px;
+.exercise-stat-unit { margin-top: 8rpx; color: var(--muted); font-size: 21rpx; }
+.exercise-divider { width: 1rpx; background: var(--line); }
+
+.exercise-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
+  margin-top: auto;
+  padding-top: 24rpx;
 }
 
-.exercise-divider {
-  width: 1px;
-  height: 36px;
-  background: #E0E0E0;
-  flex-shrink: 0;
+.exercise-status-dot {
+  flex: 0 0 10rpx;
+  width: 10rpx;
+  height: 10rpx;
+  margin-top: 10rpx;
+  background: var(--brand);
+  border-radius: 50%;
 }
 
-.exercise-btn {
-  margin-top: 12px;
-  background: #E3F2FD;
-  padding: 12px 0;
-  border-radius: 20px;
-  text-align: center;
-}
-
-.exercise-btn-text {
-  font-size: 24px;
-  color: #2196F3;
-  font-weight: 600;
-}
+.exercise-status-text { color: var(--muted); font-size: 22rpx; line-height: 1.5; }

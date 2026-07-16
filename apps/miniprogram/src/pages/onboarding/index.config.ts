@@ -1,5 +1,5 @@
 export default definePageConfig({
   navigationBarTitleText: '设定目标',
-  navigationBarBackgroundColor: '#F8FDF8',
+  navigationBarBackgroundColor: '#f4f7f3',
   navigationBarTextStyle: 'black',
 })

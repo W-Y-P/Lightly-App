@@ -24,7 +24,11 @@ export default defineConfig({
     options: {},
   },
   framework: 'react',
-  compiler: 'webpack5',
+  compiler: {
+    type: 'webpack5',
+    // Keep dependency resolution in webpack so universal-router uses its v6 matcher.
+    prebundle: { enable: false },
+  },
   mini: {
     postcss: {
       pxtransform: {
@@ -64,6 +68,11 @@ export default defineConfig({
     webpackChain(chain) {
       chain.resolve.modules.add(path.resolve(process.cwd(), 'node_modules'))
       chain.resolve.modules.add(path.resolve(process.cwd(), '../../node_modules'))
+      // universal-router requires path-to-regexp v6, while Express hoists v0.1 at the repo root.
+      chain.resolve.alias.set(
+        'path-to-regexp',
+        path.resolve(process.cwd(), '../../node_modules/universal-router/node_modules/path-to-regexp'),
+      )
     },
   },
 })

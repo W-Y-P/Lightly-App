@@ -1,9 +1,9 @@
 export default definePageConfig({
   navigationStyle: 'default',
-  navigationBarTitleText: '今日',
-  navigationBarBackgroundColor: '#E8F5E9',
+  navigationBarTitleText: '',
+  navigationBarBackgroundColor: '#edf7f0',
   navigationBarTextStyle: 'black',
-  backgroundColor: '#E8F5E9',
-  backgroundColorTop: '#E8F5E9',
-  backgroundColorBottom: '#FFFFFF',
+  backgroundColor: '#f4f7f3',
+  backgroundColorTop: '#edf7f0',
+  backgroundColorBottom: '#f4f7f3',
 })

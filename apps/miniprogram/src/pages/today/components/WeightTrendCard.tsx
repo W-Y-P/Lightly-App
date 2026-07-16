@@ -5,8 +5,8 @@ import './WeightTrendCard.scss'
 
 export default function WeightTrendCard() {
   const { currentWeight, weightUnit, weightTrend } = useTodayData()
-  const minW = Math.min(...weightTrend.map(p => p.weight))
-  const maxW = Math.max(...weightTrend.map(p => p.weight))
+  const minW = weightTrend.length > 0 ? Math.min(...weightTrend.map(p => p.weight)) : 0
+  const maxW = weightTrend.length > 0 ? Math.max(...weightTrend.map(p => p.weight)) : 0
   const range = maxW - minW || 1
 
   const handleCheckin = () => {
@@ -23,16 +23,15 @@ export default function WeightTrendCard() {
   return (
     <View className='weight-card' onClick={handleCheckin}>
       <View className='weight-header'>
-        <View className='weight-icon-circle'>
-          <Text className='weight-icon'>⚖️</Text>
-        </View>
         <Text className='weight-title'>体重趋势</Text>
+        <Text className='weight-link'>记录 ›</Text>
       </View>
       <View className='weight-current'>
-        <Text className='weight-current-value'>{currentWeight}</Text>
+        <Text className='weight-current-value'>{currentWeight > 0 ? currentWeight : '--'}</Text>
         <Text className='weight-current-unit'>{weightUnit}</Text>
       </View>
       <View className='weight-bars'>
+        {bars.length === 0 && <Text className='weight-empty'>记录体重后显示近 7 天趋势</Text>}
         {bars.map((p) => (
           <View key={p.date} className='weight-bar-col'>
             <View className='weight-bar' style={{ height: `${p.h}rpx` }} />
@@ -40,9 +39,7 @@ export default function WeightTrendCard() {
           </View>
         ))}
       </View>
-      <View className='weight-checkin-btn'>
-        <Text className='weight-checkin-text'>去打卡</Text>
-      </View>
+      <Text className='weight-note'>建议固定早晨空腹称重</Text>
     </View>
   )
 }

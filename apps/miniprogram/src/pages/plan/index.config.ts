@@ -1,5 +1,5 @@
 export default definePageConfig({
   navigationBarTitleText: '计划',
-  navigationBarBackgroundColor: '#E8F5E9',
+  navigationBarBackgroundColor: '#f4f7f3',
   navigationBarTextStyle: 'black',
 })

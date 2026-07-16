@@ -5,19 +5,20 @@ import './MetricRow.scss'
 export default function MetricRow() {
   const d = useTodayData()
   const items = [
-    { label: '已摄入', value: `${d.consumed}`, unit: 'kcal', color: '#4CAF50' },
-    { label: '基础消耗', value: `${d.baseExpenditure}`, unit: 'kcal', color: '#2196F3' },
-    { label: '运动消耗', value: `${d.exerciseCalories}`, unit: 'kcal', color: '#FF9800' },
-    { label: '目标缺口', value: `${d.targetGap}`, unit: 'kcal', color: '#E91E63' },
-    { label: '目标摄入', value: `${d.targetIntake}`, unit: 'kcal', color: '#9C27B0' },
+    { label: '已摄入', value: `${d.consumed}`, unit: 'kcal', tone: 'brand' },
+    { label: '总消耗', value: `${d.baseExpenditure}`, unit: 'kcal', tone: 'blue' },
+    { label: '运动', value: `${d.exerciseCalories}`, unit: 'kcal', tone: 'amber' },
+    { label: '实际缺口', value: `${Math.abs(d.targetGap)}`, unit: 'kcal', tone: 'brand' },
+    { label: '目标摄入', value: `${d.targetIntake}`, unit: 'kcal', tone: 'ink' },
   ]
 
   return (
     <View className='metric-row'>
       {items.map((item) => (
-        <View key={item.label} className='metric-item'>
-          <Text className='metric-value' style={{ color: item.color }}>{item.value}</Text>
+        <View key={item.label} className={`metric-item metric-item--${item.tone}`}>
           <Text className='metric-label'>{item.label}</Text>
+          <Text className='metric-value'>{item.value}</Text>
+          <Text className='metric-unit'>{item.unit}</Text>
         </View>
       ))}
     </View>

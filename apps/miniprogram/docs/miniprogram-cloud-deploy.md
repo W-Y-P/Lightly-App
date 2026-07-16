@@ -13,7 +13,7 @@
    - `apps/miniprogram/src/config/cloud.ts` 中 `cloudEnvId` 保持为空字符串 `''`。
    - 将 `useDynamicCloudEnv` 设置为 `true`。
 
-默认情况下云能力是关闭的，这样 `touristappid` 或未开通云开发的本地 demo 不会卡住模拟器；正式部署到微信云前需要按上面方式显式启用。
+当前完整项目已经固定到开发环境 `cloud1-d0gkjbgmncb3b9f04`。复制到新项目时，必须替换为新环境 ID，或改用动态环境模式。
 
 如果你仍想在本地用旧的 HTTP API 调试，可以把 `useHttpFallback` 设置为 `true`，并启动 `http://127.0.0.1:8797` 对应的 API 服务。默认关闭，避免开发者工具控制台出现本地服务未启动的网络错误。
 
@@ -32,7 +32,7 @@
 
 - `apps/miniprogram/cloudfunctions/lightlyApi`
 
-`apps/miniprogram/cloudbaserc.json` 已把 `lightlyApi` 云函数超时时间设置为 20 秒，避免真实大模型识别在默认 3 秒限制下超时。`lightlyApi/config.json` 也保留同样配置，兼容开发者工具侧的文件展示；最终以云端函数详情显示的 `timeout` 为准。
+`apps/miniprogram/cloudbaserc.json` 已把 `lightlyApi` 云函数超时时间设置为 30 秒，上游 AI 请求会在 15 秒主动中止，留出额度回滚时间。`lightlyApi/config.json` 也保留同样配置；最终以云端函数详情显示的 `timeout` 为准。
 
 部署步骤：
 
@@ -71,7 +71,7 @@ npx -y -p @cloudbase/cli@latest tcb fn deploy lightlyApi \
 npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b9f04
 ```
 
-若不使用 CloudBase CLI，也可以在云开发控制台中打开 `lightlyApi`，把函数超时时间手动改为 20 秒或以上。
+若不使用 CloudBase CLI，也可以在云开发控制台中打开 `lightlyApi`，把函数超时时间手动改为 30 秒。
 
 ## 4. 配置大模型环境变量
 
@@ -81,9 +81,9 @@ npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b
 
 - `AI_BASE_URL`: Mimo 兼容接口 base URL，例如以 `/v1` 结尾的地址；也可以使用 `MIMO_BASE_URL`
 - `AI_API_KEY`: 当前项目使用的 Mimo key；也可以使用 `MIMO_API_KEY`
-- `AI_MODEL`: Mimo 2.5 普通模型 ID，禁止配置 Pro 模型；也可以使用 `MIMO_MODEL`
+- `AI_MODEL`: `mimo-v2.5`（普通模型，禁止配置 Pro）；也可以使用 `MIMO_MODEL`
 
-如果没有配置 `AI_BASE_URL` 或 `AI_API_KEY`，云函数会自动使用 mock 估算，方便先验证数据链路。拍照识别不会保存原图，只在本次云函数调用内用于估算；用户确认后才保存结构化餐食数据。
+如果没有配置 `AI_BASE_URL` 或 `AI_API_KEY`，云函数会明确返回 `ai_not_configured`，不会生成虚假估算，也不会消耗免费次数或积分。拍照识别不会保存原图，只在本次云函数调用内用于估算；模型成功返回且用户确认后，才保存结构化餐食数据。
 
 ## 5. 创建云数据库集合
 
@@ -91,6 +91,7 @@ npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b
 
 - `users`
 - `plans`
+- `dailyPlanSnapshots`
 - `meals`
 - `exercises`
 - `weights`
@@ -110,6 +111,7 @@ MVP 可先不建索引，直接验证流程。若后续数据增长，可加：
 - `exercises`: `{ openid: 1, date: 1 }`
 - `weights`: `{ openid: 1, date: 1 }`
 - `plans`: `{ openid: 1, createdAt: -1 }`
+- `dailyPlanSnapshots`: `{ openid: 1, date: 1 }`
 
 ## 7. 初始化逻辑
 
@@ -117,7 +119,7 @@ MVP 可先不建索引，直接验证流程。若后续数据增长，可加：
 
 - 云配置启用后，`app.ts` 启动时执行 `wx.cloud.init(...)`
 - 云配置启用后，默认优先走微信云函数 `lightlyApi`
-- 若云未启用或不可用，页面使用 mock 数据兜底，保证本地 demo 不白屏
+- 若云未启用或不可用，页面展示明确的空态/错误态，不展示可能过期的 mock 数据
 - 若云函数调用失败，且 `useHttpFallback` 开启，前端再 fallback 到原有 HTTP 路径
 - 页面不会因为未配置云而白屏
 
@@ -160,12 +162,20 @@ cd apps/miniprogram
 - `getEntitlement`
 - `createPlan`
 - `getCurrentPlan`
+- `updatePlanGoal`
+- `updatePlanMacros`
 - `getDailySummary`
 - `createMeal`
+- `updateMeal`
+- `deleteMeal`
 - `getMeals`
 - `createExercise`
+- `updateExercise`
+- `deleteExercise`
 - `getExercises`
 - `createWeight`
+- `updateWeight`
+- `deleteWeight`
 - `getWeights`
 - `getWeightTrend`
 - `getDeficitTrend`
@@ -177,7 +187,7 @@ cd apps/miniprogram
 
 - 创建云环境
 - 开通云开发
-- 创建上述 7 个集合
+- 创建上述 8 个集合
 - 上传部署 `lightlyApi` 云函数
 - 配置大模型环境变量，使用 Mimo 2.5 普通模型，不使用 Pro 模型
 - 若使用固定环境，填写 `cloudEnvId`

@@ -1,7 +1,53 @@
-page {
-  background-color: #E8F5E9;
+page,
+:root {
+  --bg-page: #f4f7f3;
+  --surface: #ffffff;
+  --surface-soft: #edf6f0;
+  --brand: #168a5b;
+  --brand-strong: #0d6b47;
+  --brand-soft: #dff2e6;
+  --ink: #17251e;
+  --muted: #6f7d75;
+  --faint: #9aa69f;
+  --line: #e2e9e4;
+  --blue: #3d83b8;
+  --blue-soft: #e9f3fa;
+  --amber: #d7921b;
+  --amber-soft: #fff4d9;
+  --coral: #d86e52;
+  --coral-soft: #fff0eb;
+  --danger: #bd4b45;
+  --shadow-card: 0 8rpx 28rpx rgba(31, 67, 47, 0.07);
+  --radius-card: 24rpx;
+  --radius-control: 16rpx;
+
+  color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
   font-size: 28px;
-  color: #333333;
   -webkit-font-smoothing: antialiased;
+}
+
+page {
+  min-height: 100%;
+  background: var(--bg-page);
+}
+
+view,
+text,
+input,
+textarea,
+scroll-view {
+  box-sizing: border-box;
+}
+
+.app-card {
+  background: var(--surface);
+  border: 1rpx solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.app-pressable:active {
+  opacity: 0.72;
+  transform: scale(0.985);
 }

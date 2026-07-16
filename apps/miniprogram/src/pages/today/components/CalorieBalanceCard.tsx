@@ -12,24 +12,27 @@ export default function CalorieBalanceCard() {
       <View className='calorie-card-body'>
         <View className='calorie-card-left'>
           <View className='calorie-ring'>
-            <View className='calorie-ring-bg' />
-            <View className='calorie-ring-progress' style={{
-              background: `conic-gradient(#4CAF50 ${progress * 360}deg, rgba(255,255,255,0.6) ${progress * 360}deg)`
-            }} />
             <View className='calorie-ring-inner'>
               <Text className='calorie-number'>{remainingCalories}</Text>
               <Text className='calorie-unit'>kcal</Text>
             </View>
           </View>
-          <Text className='calorie-range'>建议范围 {suggestedRange.min}-{suggestedRange.max} kcal</Text>
+          <View className='calorie-progress-track'>
+            <View className='calorie-progress-fill' style={{ width: `${Math.max(4, progress * 100)}%` }} />
+          </View>
+          <Text className='calorie-range'>建议摄入 {suggestedRange.min}-{suggestedRange.max} kcal</Text>
         </View>
         <View className='calorie-card-right'>
           <View className='calorie-bubble'>
-            <Text className='calorie-bubble-text'>做得不错，保持住哦！</Text>
+            <Text className='calorie-bubble-kicker'>今日节奏</Text>
+            <Text className='calorie-bubble-text'>按饥饿感安排剩余餐次</Text>
           </View>
-          <View className='calorie-emoji-row'>
-            <Text className='calorie-emoji'>🥗</Text>
-            <Text className='calorie-emoji-sm'>🥤</Text>
+          <View className='calorie-illustration'>
+            <View className='calorie-bowl'>
+              <View className='calorie-leaf calorie-leaf--one' />
+              <View className='calorie-leaf calorie-leaf--two' />
+              <View className='calorie-leaf calorie-leaf--three' />
+            </View>
           </View>
         </View>
       </View>

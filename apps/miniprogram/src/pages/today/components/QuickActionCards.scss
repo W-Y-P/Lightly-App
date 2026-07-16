@@ -1,84 +1,15 @@
-.action-cards {
-  display: flex;
-  padding: 0 32px;
-  margin-top: 16px;
-  gap: 16px;
-}
-
-.action-card {
-  flex: 1;
-  min-width: 0;
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
-}
-
-.action-icon-circle {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 12px;
-  flex-shrink: 0;
-}
-
-.action-icon--weight {
-  background: #F3E5F5;
-}
-
-.action-icon--photo {
-  background: #E3F2FD;
-}
-
-.action-icon {
-  font-size: 32px;
-}
-
-.action-title {
-  font-size: 26px;
-  font-weight: 600;
-  color: #333333;
-  margin-bottom: 6px;
-  text-align: center;
-}
-
-.action-subtitle {
-  font-size: 20px;
-  color: #999999;
-  text-align: center;
-  line-height: 1.4;
-  margin-bottom: 16px;
-}
-
-.action-btn {
-  padding: 12px 28px;
-  border-radius: 40px;
-}
-
-.action-btn--weight {
-  background: #F3E5F5;
-}
-
-.action-btn--photo {
-  background: #E3F2FD;
-}
-
-.action-btn-text {
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.action-btn--weight .action-btn-text {
-  color: #9C27B0;
-}
-
-.action-btn--photo .action-btn-text {
-  color: #2196F3;
-}
+.action-cards { display: flex; gap: 18rpx; margin-top: 18rpx; }
+.action-card { display: flex; min-width: 0; flex: 1; flex-direction: column; padding: 22rpx; background: var(--surface); border: 1rpx solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+.action-card:active { opacity: 0.72; transform: translateY(2rpx); }
+.action-icon-circle { display: flex; align-items: center; justify-content: center; width: 54rpx; height: 54rpx; border-radius: 16rpx; }
+.action-icon--weight { background: var(--brand-soft); }
+.action-icon--photo { position: relative; background: var(--blue-soft); }
+.action-icon { color: var(--brand-strong); font-size: 22rpx; font-weight: 760; }
+.action-camera-lens { width: 22rpx; height: 22rpx; border: 4rpx solid var(--blue); border-radius: 50%; }
+.action-camera-lens::before { position: absolute; top: 14rpx; left: 11rpx; width: 31rpx; height: 24rpx; border: 3rpx solid var(--blue); border-radius: 6rpx; content: ''; }
+.action-title { margin-top: 16rpx; color: var(--ink); font-size: 25rpx; font-weight: 700; }
+.action-subtitle { min-height: 64rpx; margin-top: 8rpx; color: var(--muted); font-size: 22rpx; line-height: 1.5; }
+.action-btn { display: flex; min-height: 60rpx; align-items: center; justify-content: center; margin-top: 16rpx; background: var(--brand-soft); border-radius: 14rpx; }
+.action-btn--photo { background: var(--blue-soft); }
+.action-btn-text { color: var(--brand-strong); font-size: 22rpx; font-weight: 680; }
+.action-btn--photo .action-btn-text { color: #28658f; }

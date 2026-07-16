@@ -15,9 +15,10 @@ export default function ExerciseCard() {
     <View className='exercise-card' onClick={handleExercise}>
       <View className='exercise-header'>
         <View className='exercise-icon-circle'>
-          <Text className='exercise-icon'>🏃</Text>
+          <View className='exercise-icon-line' />
         </View>
         <Text className='exercise-title'>运动记录</Text>
+        <Text className='exercise-link'>查看 ›</Text>
       </View>
       <View className='exercise-stats'>
         <View className='exercise-stat'>
@@ -35,8 +36,9 @@ export default function ExerciseCard() {
           <Text className='exercise-stat-unit'>类型</Text>
         </View>
       </View>
-      <View className='exercise-btn'>
-        <Text className='exercise-btn-text'>去记录</Text>
+      <View className='exercise-status'>
+        <View className='exercise-status-dot' />
+        <Text className='exercise-status-text'>运动会按保守比例计入今日可吃余额</Text>
       </View>
     </View>
   )

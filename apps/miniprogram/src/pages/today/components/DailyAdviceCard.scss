@@ -1,41 +1,13 @@
 .advice-card {
-  margin: 16px 32px 0;
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-top: 18rpx;
+  padding: 24rpx;
+  background: linear-gradient(145deg, #eef8f1, #f8fbf9);
+  border: 1rpx solid #d7eadc;
+  border-radius: var(--radius-card);
 }
 
-.advice-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.advice-icon-circle {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #E8F5E9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  flex-shrink: 0;
-}
-
-.advice-icon {
-  font-size: 28px;
-}
-
-.advice-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #333333;
-}
-
-.advice-text {
-  font-size: 24px;
-  color: #666666;
-  line-height: 1.7;
-}
+.advice-header { display: flex; align-items: center; gap: 12rpx; }
+.advice-icon-circle { display: flex; align-items: center; justify-content: center; width: 38rpx; height: 38rpx; background: var(--brand); border-radius: 50%; }
+.advice-icon { color: #fff; font-size: 22rpx; font-weight: 750; }
+.advice-title { color: var(--ink); font-size: 26rpx; font-weight: 720; }
+.advice-text { display: block; margin-top: 13rpx; color: #52635a; font-size: 22rpx; line-height: 1.65; }
