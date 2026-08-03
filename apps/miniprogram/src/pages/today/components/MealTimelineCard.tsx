@@ -1,6 +1,6 @@
 import { View, Text } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { useTodayData } from '../../../store/todayDataStore'
+import { openRecord } from '../../../utils/recordIntent'
 import './MealTimelineCard.scss'
 
 export default function MealTimelineCard() {
@@ -40,7 +40,7 @@ export default function MealTimelineCard() {
           </View>
         ))}
       </View>
-      <View className='timeline-more' onClick={() => Taro.switchTab({ url: '/pages/record/index' })}>
+      <View className='timeline-more' onClick={() => openRecord({ type: 'calendar' })}>
         <Text className='timeline-more-text'>查看全部记录 ›</Text>
       </View>
     </View>

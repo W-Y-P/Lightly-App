@@ -7,7 +7,7 @@ import { isCloudConfigured, useHttpFallback } from '../config/cloud'
 const CLOUD_FUNCTION_NAME = 'lightlyApi'
 const BASE_URL = 'http://127.0.0.1:8797'
 const CLOUD_REQUEST_TIMEOUT_MS = 12_000
-const AI_REQUEST_TIMEOUT_MS = 25_000
+const AI_REQUEST_TIMEOUT_MS = 45_000
 const RETRY_DELAY_MS = 350
 
 type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; data?: T }
@@ -24,7 +24,10 @@ export type AuthMode = 'wechat' | 'guest' | null
 
 let _token: string | null = null
 let _authMode: AuthMode = null
-let _cloudBroken = false
+let _cloudFailureCount = 0
+let _cloudRetryAfter = 0
+const CLOUD_FAILURE_THRESHOLD = 3
+const CLOUD_BREAKER_COOLDOWN_MS = 10_000
 
 export function setToken(token: string | null) {
   _token = token
@@ -53,7 +56,13 @@ let _authReadyPromise: Promise<boolean> | null = null
  */
 export function ensureAuthReady(): Promise<boolean> {
   if (!_authReadyPromise) {
-    _authReadyPromise = _doInitAuth()
+    _authReadyPromise = _doInitAuth().then((ready) => {
+      if (!ready) _authReadyPromise = null
+      return ready
+    }, (error) => {
+      _authReadyPromise = null
+      throw error
+    })
   }
   return _authReadyPromise
 }
@@ -63,6 +72,8 @@ export function resetAuth() {
   _token = null
   _authMode = null
   _authReadyPromise = null
+  _cloudFailureCount = 0
+  _cloudRetryAfter = 0
   Taro.removeStorageSync('token')
   Taro.removeStorageSync('userId')
   Taro.removeStorageSync('authMode')
@@ -125,7 +136,7 @@ async function _doInitAuth(): Promise<boolean> {
 function isCloudAvailable(): boolean {
   try {
     if (!isCloudConfigured()) return false
-    if (_cloudBroken) return false
+    if (_cloudRetryAfter > Date.now()) return false
     if (typeof process !== 'undefined' && process.env && process.env.TARO_ENV === 'h5') return false
     return typeof wx !== 'undefined' && typeof wx.cloud !== 'undefined'
   } catch {
@@ -191,6 +202,8 @@ function cloudRequest<T>(action: string, payload?: unknown, timeoutMs = CLOUD_RE
     return callCloudFunctionOnce(action, payload)
   })
   return withTimeout(request, timeoutMs, action).then((res: any) => {
+    _cloudFailureCount = 0
+    _cloudRetryAfter = 0
     const result = res && res.result
     if (!result) {
       return { ok: false, error: 'empty_cloud_result' } as const
@@ -204,7 +217,11 @@ function cloudRequest<T>(action: string, payload?: unknown, timeoutMs = CLOUD_RE
       console.warn(`[Cloud] ${action} timed out after ${timeoutMs / 1000}s`)
       return { ok: false, error: `cloud_timeout_${timeoutMs / 1000}s:${action}` } as const
     }
-    _cloudBroken = true
+    _cloudFailureCount += 1
+    if (_cloudFailureCount >= CLOUD_FAILURE_THRESHOLD) {
+      _cloudFailureCount = 0
+      _cloudRetryAfter = Date.now() + CLOUD_BREAKER_COOLDOWN_MS
+    }
     console.warn('[Cloud] callFunction failed, fallback to HTTP:', err)
     return { ok: false, error: 'cloud_call_failed' } as const
   })
@@ -248,6 +265,7 @@ async function backendRequest<T>(
   options: BackendRequestOptions = {},
 ): Promise<ApiResult<T>> {
   const timeoutMs = options.timeoutMs ?? CLOUD_REQUEST_TIMEOUT_MS
+  let cloudFailure: ApiResult<T> | null = null
   if (isCloudAvailable()) {
     const cloudRes = await cloudRequest<T>(action, payload, timeoutMs)
     if (cloudRes.ok) {
@@ -256,10 +274,11 @@ async function backendRequest<T>(
     if (cloudRes.error !== 'cloud_call_failed') {
       return cloudRes
     }
+    cloudFailure = cloudRes
   }
 
   if (!useHttpFallback || !httpMethod || !httpPath) {
-    return { ok: false, error: 'http_not_configured' }
+    return cloudFailure || { ok: false, error: 'cloud_temporarily_unavailable' }
   }
   return httpRequest<T>(httpMethod, httpPath, httpBody, timeoutMs)
 }
@@ -352,7 +371,7 @@ export async function createPlan(body: CreatePlanBody) {
 }
 
 export async function getCurrentPlan() {
-  return backendRequest<{ plan: PlanRecord }>('getCurrentPlan', {}, 'GET', '/plans/current')
+  return backendRequest<{ plan: PlanRecord | null }>('getCurrentPlan', {}, 'GET', '/plans/current')
 }
 
 export interface UpdatePlanGoalBody {
@@ -516,6 +535,7 @@ export interface WeightEntry {
   weightKg: number
   weighingContext?: string
   clientRequestId?: string
+  createdAt?: string
 }
 
 export interface WeightCalibration {
@@ -575,13 +595,13 @@ export async function getDeficitTrend(days?: number) {
 // ── AI ──
 export async function aiTextEstimate(description: string, clientRequestId?: string) {
   const payload = withClientRequestId('ai_text', { description, clientRequestId })
-  return createRequestWithRetry<{
+  return backendRequest<{
     /** @deprecated 兼容旧调用，单条粗估结果 */
     estimate: { foodName: string; kcal: number; carbG: number; proteinG: number; fatG: number; confidence: number }
     /** 食品列表（新） */
     items: MealItemInput[]
     message: string
-  }>('aiTextEstimate', payload, '/ai/meal-text-estimate', { timeoutMs: AI_REQUEST_TIMEOUT_MS })
+  }>('aiTextEstimate', payload, 'POST', '/ai/meal-text-estimate', payload, { timeoutMs: AI_REQUEST_TIMEOUT_MS })
 }
 
 export interface PhotoEstimateOptions {
@@ -610,7 +630,7 @@ export async function aiPhotoEstimate(
     imageSizeBytes: options.imageSizeBytes ?? options.sizeBytes,
     clientRequestId: options.clientRequestId,
   })
-  return createRequestWithRetry<{
+  return backendRequest<{
     /** @deprecated 兼容旧调用，单条粗估结果 */
     estimate: { foodName: string; kcal: number; carbG: number; proteinG: number; fatG: number; confidence: number }
     /** 食品列表（新） */
@@ -623,7 +643,12 @@ export async function aiPhotoEstimate(
     image: { mimeType: string; sizeBytes: number }
     mimeType: string
     imageSizeBytes: number
-  }>('aiPhotoEstimate', payload, '/ai/meal-photo-estimate', { timeoutMs: AI_REQUEST_TIMEOUT_MS })
+  }>('aiPhotoEstimate', payload, 'POST', '/ai/meal-photo-estimate', payload, { timeoutMs: AI_REQUEST_TIMEOUT_MS })
+}
+
+export async function createFeedback(content: string) {
+  const payload = withClientRequestId('feedback', { content, category: 'general', clientRequestId: undefined })
+  return createRequestWithRetry<{ id: string; deduplicated?: boolean }>('createFeedback', payload, '/feedback')
 }
 
 // ── Account ──

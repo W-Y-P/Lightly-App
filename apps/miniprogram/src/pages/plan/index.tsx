@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Input, Picker, Text, View } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import {
@@ -112,6 +112,7 @@ export default function PlanPage() {
   const [macroForm, setMacroForm] = useState<MacroForm>({
     proteinMin: '', proteinMax: '', carbMin: '', carbMax: '', fatMin: '', fatMax: '',
   })
+  const modalInitialRef = useRef('')
 
   useDidShow(() => {
     setReloadKey((key) => key + 1)
@@ -196,35 +197,51 @@ export default function PlanPage() {
 
   const openGoalModal = () => {
     setPlanTabBarVisible(false)
-    setGoalForm({
+    const form = {
       targetWeight: String(plan.targetWeight),
       weeklyLoss: plan.weeklyLoss == null ? '' : String(plan.weeklyLoss),
       targetDate: plan.targetDate,
       mode: plan.targetDate ? 'date' : 'weekly',
-    })
+    } as GoalForm
+    setGoalForm(form)
+    modalInitialRef.current = JSON.stringify(form)
     setFormError('')
     setModal('goal')
   }
 
   const openMacroModal = () => {
     setPlanTabBarVisible(false)
-    setMacroForm({
+    const form = {
       proteinMin: String(plan.macros.protein.min),
       proteinMax: String(plan.macros.protein.max),
       carbMin: String(plan.macros.carb.min),
       carbMax: String(plan.macros.carb.max),
       fatMin: String(plan.macros.fat.min),
       fatMax: String(plan.macros.fat.max),
-    })
+    }
+    setMacroForm(form)
+    modalInitialRef.current = JSON.stringify(form)
     setFormError('')
     setModal('macros')
   }
 
-  const closeModal = () => {
+  const closeModal = async () => {
     if (saving) return
+    const current = modal === 'goal' ? JSON.stringify(goalForm) : JSON.stringify(macroForm)
+    if (modalInitialRef.current && current !== modalInitialRef.current) {
+      const result = await Taro.showModal({
+        title: '放弃本次修改？',
+        content: '当前调整尚未保存。',
+        confirmText: '放弃',
+        cancelText: '继续填写',
+        confirmColor: '#B64A3B',
+      })
+      if (!result.confirm) return
+    }
     setPlanTabBarVisible(true)
     setModal(null)
     setFormError('')
+    modalInitialRef.current = ''
   }
 
   const saveGoal = async () => {
@@ -238,12 +255,14 @@ export default function PlanPage() {
       return
     }
 
+    let effectiveWeeklyLoss = 0
     if (goalForm.mode === 'weekly') {
       const weeklyLoss = Number(goalForm.weeklyLoss)
       if (!Number.isFinite(weeklyLoss) || weeklyLoss < 0.1 || weeklyLoss > 2) {
         setFormError('每周减重请填写 0.1-2 kg')
         return
       }
+      effectiveWeeklyLoss = weeklyLoss
     } else {
       const targetDate = goalForm.targetDate
       if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate) || targetDate < tomorrow) {
@@ -255,6 +274,18 @@ export default function PlanPage() {
         setFormError('这个日期对应的节奏需在每周 0.1-2 kg 之间')
         return
       }
+      effectiveWeeklyLoss = weeklyLoss
+    }
+
+    if (effectiveWeeklyLoss > 0.75 || effectiveWeeklyLoss / plan.currentWeight > 0.01) {
+      const warning = await Taro.showModal({
+        title: '减重速度偏快',
+        content: `按当前设置，预计每周减重约 ${effectiveWeeklyLoss.toFixed(2)} kg。较快速度可能增加疲劳与反弹风险，仍要继续保存吗？`,
+        cancelText: '返回调整',
+        confirmText: '仍然保存',
+        confirmColor: '#B06A28',
+      })
+      if (!warning.confirm) return
     }
 
     setSaving(true)

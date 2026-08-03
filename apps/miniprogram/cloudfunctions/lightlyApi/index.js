@@ -1,5 +1,4 @@
 const cloud = require('wx-server-sdk')
-const http = require('http')
 const https = require('https')
 const crypto = require('crypto')
 
@@ -20,7 +19,8 @@ const TREND_MAX_DAYS = 90
 const QUERY_PAGE_SIZE = 100
 const DAILY_ACTIVITY_BASELINE_MULTIPLIER = 1.2
 const EXERCISE_CREDIT_RATIO = 0.7
-const AI_REQUEST_TIMEOUT_MS = 15000
+const AI_REQUEST_TIMEOUT_MS = 24000
+const AI_TEXT_DAILY_LIMIT = 30
 const PHOTO_RESERVATION_TIMEOUT_MS = 60000
 const DAILY_PLAN_SNAPSHOT_COLLECTION = 'dailyPlanSnapshots'
 const ACCOUNT_COLLECTIONS = Object.freeze([
@@ -31,6 +31,8 @@ const ACCOUNT_COLLECTIONS = Object.freeze([
   'weights',
   'pointsLedger',
   'photoUsage',
+  'aiTextUsage',
+  'feedback',
   'users',
 ])
 
@@ -887,7 +889,7 @@ function normalizeMeal(payload, existing) {
   }))
   if (status === 'recorded') {
     if (!items.length || items.some((item) => !item.foodName)) return { error: 'recorded meal requires food items' }
-    if (items.some((item) => !Number.isFinite(item.kcal) || item.kcal <= 0)) return { error: 'recorded meal item kcal must be positive' }
+    if (items.some((item) => !Number.isFinite(item.kcal) || item.kcal < 0)) return { error: 'recorded meal item kcal must be non-negative' }
     if (items.some((item) => !Number.isFinite(item.quantityG) || item.quantityG < 0
       || !Number.isFinite(item.carbG) || item.carbG < 0
       || !Number.isFinite(item.proteinG) || item.proteinG < 0
@@ -901,7 +903,9 @@ function normalizeMeal(payload, existing) {
     proteinG: Math.round(items.reduce((sum, item) => sum + item.proteinG, 0) * 10) / 10,
     fatG: Math.round(items.reduce((sum, item) => sum + item.fatG, 0) * 10) / 10,
   }
-  if (status === 'recorded' && totals.carbG + totals.proteinG + totals.fatG <= 0) {
+  const mealSlot = hasOwn(payload, 'mealSlot') ? payload.mealSlot : existing && existing.mealSlot
+  if (status === 'recorded' && totals.carbG + totals.proteinG + totals.fatG <= 0
+    && !(mealSlot === 'drink' && totals.totalKcal === 0)) {
     return { error: 'recorded meal macros must not all be zero' }
   }
   return { status, items, ...totals }
@@ -1147,6 +1151,7 @@ function publicWeight(weight) {
     weightKg: weight.weightKg,
     weighingContext: weight.weighingContext || 'morning',
     clientRequestId: weight.clientRequestId || undefined,
+    createdAt: weight.createdAt || undefined,
   }
 }
 
@@ -1314,11 +1319,15 @@ async function getWeightTrend(payload, openid) {
     const current = byDate.get(weight.date)
     const context = weight.weighingContext || 'morning'
     const isMorning = /morning|早|空腹/i.test(context)
-    if (!current || (isMorning && !current.isMorning)) {
-      byDate.set(weight.date, { date: weight.date, weightKg: weight.weightKg, weighingContext: context, isMorning })
+    const createdAt = timestampMillis(weight.createdAt)
+    const shouldReplace = !current
+      || (isMorning && !current.isMorning)
+      || (isMorning === current.isMorning && Number.isFinite(createdAt) && createdAt >= current.createdAt)
+    if (shouldReplace) {
+      byDate.set(weight.date, { date: weight.date, weightKg: weight.weightKg, weighingContext: context, isMorning, createdAt })
     }
   })
-  const points = [...byDate.values()].map(({ isMorning, ...point }) => point)
+  const points = [...byDate.values()].map(({ isMorning, createdAt, ...point }) => point)
   return { code: 0, data: { points }, message: 'ok' }
 }
 
@@ -1371,39 +1380,99 @@ async function getDeficitTrend(payload, openid) {
 }
 
 function getAiConfig() {
-  const baseUrl = (process.env.AI_BASE_URL || process.env.MIMO_BASE_URL || '').replace(/\/+$/, '')
-  const apiKey = process.env.AI_API_KEY || process.env.MIMO_API_KEY || ''
-  const model = process.env.AI_MODEL || process.env.MIMO_MODEL || 'mimo-v2.5'
-  return { baseUrl, apiKey, model, enabled: Boolean(baseUrl && apiKey) }
+  const baseUrl = (process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '')
+  const apiKey = process.env.OPENAI_API_KEY || process.env.AI_API_KEY || ''
+  const model = process.env.OPENAI_MODEL || process.env.AI_MODEL || 'gpt-5.6-sol'
+  return { baseUrl, apiKey, model, enabled: Boolean(apiKey) }
 }
 
-function safeJsonParse(text) {
-  if (!text) return null
-  try {
-    return JSON.parse(text)
-  } catch (err) {
-    const match = String(text).match(/\{[\s\S]*\}/)
-    if (!match) return null
-    try {
-      return JSON.parse(match[0])
-    } catch {
-      return null
-    }
-  }
+const MEAL_ESTIMATE_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['items', 'message'],
+  properties: {
+    items: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 12,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['foodName', 'quantityG', 'kcal', 'carbG', 'proteinG', 'fatG'],
+        properties: {
+          foodName: { type: 'string', minLength: 1, maxLength: 40 },
+          quantityG: { type: 'number', minimum: 0, maximum: 5000 },
+          kcal: { type: 'number', minimum: 0, maximum: 10000 },
+          carbG: { type: 'number', minimum: 0, maximum: 2000 },
+          proteinG: { type: 'number', minimum: 0, maximum: 1000 },
+          fatG: { type: 'number', minimum: 0, maximum: 1000 },
+        },
+      },
+    },
+    message: { type: 'string', maxLength: 120 },
+  },
+})
+
+function safetyIdentifierFor(openid) {
+  return `wechat_${crypto.createHash('sha256').update(String(openid || 'anonymous')).digest('hex').slice(0, 32)}`
+}
+
+function publicAiError(error) {
+  const message = String((error && error.message) || error || '')
+  if (/timeout|incomplete/i.test(message)) return { code: 504, message: 'ai_timeout' }
+  if (/ai_http_429/.test(message)) return { code: 429, message: 'ai_rate_limited' }
+  if (/invalid|empty|refused|too_large/i.test(message)) return { code: 502, message: 'ai_output_invalid' }
+  return { code: 503, message: 'ai_unavailable' }
+}
+
+async function reserveAiTextUsage(openid, date) {
+  if (typeof db.runTransaction !== 'function') return { allowed: false, unavailable: true }
+  const id = idempotentDocumentId('ai-text-day', openid, date)
+  return db.runTransaction(async (transaction) => {
+    const existing = await getTransactionDocument(transaction, 'aiTextUsage', id)
+    const count = Math.max(0, Math.floor(Number(existing && existing.count) || 0))
+    if (count >= AI_TEXT_DAILY_LIMIT) return { allowed: false, remaining: 0 }
+    const nextCount = count + 1
+    await transaction.collection('aiTextUsage').doc(id).set({
+      data: {
+        openid,
+        date,
+        count: nextCount,
+        limit: AI_TEXT_DAILY_LIMIT,
+        updatedAt: db.serverDate(),
+      },
+    })
+    return { allowed: true, remaining: AI_TEXT_DAILY_LIMIT - nextCount }
+  })
 }
 
 function normalizeMealItems(rawItems) {
   if (!Array.isArray(rawItems)) return []
   return rawItems
-    .map((item) => ({
-      foodName: String(item.foodName || item.name || item.food || '').slice(0, 40),
-      quantityG: Math.max(0, Math.round(Number(item.quantityG || item.grams || item.weightG || 0))),
-      kcal: Math.max(0, Math.round(Number(item.kcal || item.calories || item.energyKcal || 0))),
-      carbG: Math.max(0, Math.round(Number(item.carbG || item.carbsG || item.carbohydrateG || 0) * 10) / 10),
-      proteinG: Math.max(0, Math.round(Number(item.proteinG || item.protein || 0) * 10) / 10),
-      fatG: Math.max(0, Math.round(Number(item.fatG || item.fat || 0) * 10) / 10),
-    }))
-    .filter((item) => item.foodName)
+    .map((item) => {
+      const normalized = {
+        foodName: String(item.foodName || '').trim().slice(0, 40),
+        quantityG: Number(item.quantityG),
+        kcal: Number(item.kcal),
+        carbG: Number(item.carbG),
+        proteinG: Number(item.proteinG),
+        fatG: Number(item.fatG),
+      }
+      const numbers = [normalized.quantityG, normalized.kcal, normalized.carbG, normalized.proteinG, normalized.fatG]
+      if (!normalized.foodName || numbers.some((value) => !Number.isFinite(value) || value < 0)) return null
+      if (normalized.quantityG <= 0 || normalized.quantityG > 5000 || normalized.kcal > 10000
+        || normalized.carbG > 2000 || normalized.proteinG > 1000 || normalized.fatG > 1000) return null
+      if (normalized.kcal > 0 && normalized.carbG + normalized.proteinG + normalized.fatG <= 0) return null
+      return {
+        foodName: normalized.foodName,
+        quantityG: Math.round(normalized.quantityG),
+        kcal: Math.round(normalized.kcal),
+        carbG: Math.round(normalized.carbG * 10) / 10,
+        proteinG: Math.round(normalized.proteinG * 10) / 10,
+        fatG: Math.round(normalized.fatG * 10) / 10,
+      }
+    })
+    .filter(Boolean)
     .slice(0, 12)
 }
 
@@ -1419,25 +1488,79 @@ function aggregateEstimate(items, confidence) {
   }
 }
 
-function callOpenAICompatible(messages) {
+function buildOpenAIResponsesBody({ description, imageBase64, mimeType, openid }) {
+  const config = getAiConfig()
+  const userContent = [{
+    type: 'input_text',
+    text: imageBase64
+      ? '请识别图片中的每种可见食物，并估算可食用部分的克数、热量和三大营养素。'
+      : `用户描述：${String(description || '').slice(0, 1200)}`,
+  }]
+  if (imageBase64) {
+    userContent.push({
+      type: 'input_image',
+      image_url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}`,
+      detail: 'auto',
+    })
+  }
+  return {
+    model: config.model,
+    store: false,
+    safety_identifier: safetyIdentifierFor(openid),
+    reasoning: { effort: 'low' },
+    text: {
+      verbosity: 'low',
+      format: {
+        type: 'json_schema',
+        name: 'meal_estimate',
+        strict: true,
+        schema: MEAL_ESTIMATE_SCHEMA,
+      },
+    },
+    input: [
+      { role: 'developer', content: [{ type: 'input_text', text: buildMealPrompt(Boolean(imageBase64)) }] },
+      { role: 'user', content: userContent },
+    ],
+    max_output_tokens: 1600,
+  }
+}
+
+function parseOpenAIResponsesOutput(response) {
+  if (!response || typeof response !== 'object') throw new Error('ai_invalid_response')
+  if (response.error) throw new Error('ai_api_error')
+  if (response.status === 'incomplete') throw new Error(`ai_incomplete_${(response.incomplete_details && response.incomplete_details.reason) || 'unknown'}`)
+
+  const contentParts = Array.isArray(response.output)
+    ? response.output.flatMap((item) => (item && item.type === 'message' && Array.isArray(item.content)) ? item.content : [])
+    : []
+  if (contentParts.some((part) => part && part.type === 'refusal')) throw new Error('ai_refused')
+  const text = contentParts
+    .filter((part) => part && part.type === 'output_text')
+    .map((part) => part.text || '')
+    .join('')
+  if (!text) throw new Error('ai_empty_output')
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error('ai_invalid_json')
+  }
+}
+
+function callOpenAIResponses(requestBody) {
   const config = getAiConfig()
   if (!config.enabled) {
     return Promise.reject(new Error('ai_not_configured'))
   }
 
-  const endpoint = config.baseUrl.endsWith('/chat/completions')
+  const endpoint = config.baseUrl.endsWith('/responses')
     ? config.baseUrl
-    : `${config.baseUrl}/chat/completions`
+    : `${config.baseUrl}/responses`
   const url = new URL(endpoint)
-  const transport = url.protocol === 'http:' ? http : https
-  if (!['http:', 'https:'].includes(url.protocol)) {
+  if (url.protocol !== 'https:') {
     return Promise.reject(new Error('ai_invalid_base_url'))
   }
-  const body = JSON.stringify({
-    model: config.model,
-    messages,
-    temperature: 0.1,
-  })
+  const transport = https
+  const body = JSON.stringify(requestBody)
 
   const options = {
     method: 'POST',
@@ -1456,25 +1579,28 @@ function callOpenAICompatible(messages) {
     const req = transport.request(options, (res) => {
       let data = ''
       res.setEncoding('utf8')
-      res.on('data', (chunk) => { data += chunk })
+      res.on('data', (chunk) => {
+        data += chunk
+        if (Buffer.byteLength(data) > 1024 * 1024) req.destroy(new Error('ai_response_too_large'))
+      })
       res.on('end', () => {
         clearTimeout(timeoutHandle)
         if (res.statusCode < 200 || res.statusCode >= 300) {
           reject(new Error(`ai_http_${res.statusCode}`))
           return
         }
-        const json = safeJsonParse(data)
-        const message = json && json.choices && json.choices[0] && json.choices[0].message
-        const rawContent = message && message.content
-        const content = Array.isArray(rawContent)
-          ? rawContent.map((part) => (typeof part === 'string' ? part : (part && part.text) || '')).join('')
-          : rawContent
-        const parsed = safeJsonParse(content)
-        if (!parsed) {
-          reject(new Error('ai_invalid_json'))
+        let json
+        try {
+          json = JSON.parse(data)
+        } catch {
+          reject(new Error('ai_invalid_response'))
           return
         }
-        resolve(parsed)
+        try {
+          resolve(parseOpenAIResponsesOutput(json))
+        } catch (error) {
+          reject(error)
+        }
       })
     })
     timeoutHandle = setTimeout(() => {
@@ -1489,21 +1615,18 @@ function callOpenAICompatible(messages) {
   })
 }
 
-function buildMealJsonPrompt(extraInstruction) {
+function buildMealPrompt(hasImage) {
   return [
     '你是减脂记录应用中的食物热量估算助手。',
-    '请只返回 JSON，不要 Markdown，不要解释。',
-    'JSON 格式必须是：{"items":[{"foodName":"食物名","quantityG":克数,"kcal":千卡,"carbG":碳水克数,"proteinG":蛋白质克数,"fatG":脂肪克数}],"message":"一句温和提示"}。',
-    '估算要保守、日常化，适合中国区饮食；无法确定时给出合理近似值，避免医学诊断或绝对健康承诺。',
-    extraInstruction || '',
+    hasImage ? '根据图片拆分每种可见食物，并结合常见餐具估算份量。' : '根据自然语言描述拆分每种食物。',
+    '数量按可食用部分估算；热量与碳水、蛋白质、脂肪必须对应同一份量。',
+    '估算要保守、日常化，适合中国区饮食；不确定时给出合理近似值。',
+    '提示语保持温和，不作医学诊断，不给绝对健康承诺，并提醒用户确认份量。',
   ].join('\n')
 }
 
-function estimateMealTextWithAi(description) {
-  return callOpenAICompatible([
-    { role: 'system', content: buildMealJsonPrompt('根据用户自然语言描述拆分每种食物。') },
-    { role: 'user', content: `用户描述：${description}` },
-  ]).then((parsed) => {
+function estimateMealTextWithAi(description, openid) {
+  return callOpenAIResponses(buildOpenAIResponsesBody({ description, openid })).then((parsed) => {
     const items = normalizeMealItems(parsed.items)
     if (!items.length) throw new Error('ai_empty_items')
     return {
@@ -1514,17 +1637,8 @@ function estimateMealTextWithAi(description) {
   })
 }
 
-function estimateMealPhotoWithAi(imageBase64, mimeType) {
-  return callOpenAICompatible([
-    { role: 'system', content: buildMealJsonPrompt('根据图片识别可见食物和份量；只估算食物，不保存图片。') },
-    {
-      role: 'user',
-      content: [
-        { type: 'text', text: '请识别这张餐食图片中的食物、克数、热量和三大营养素。' },
-        { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } },
-      ],
-    },
-  ]).then((parsed) => {
+function estimateMealPhotoWithAi(imageBase64, mimeType, openid) {
+  return callOpenAIResponses(buildOpenAIResponsesBody({ imageBase64, mimeType, openid })).then((parsed) => {
     const items = normalizeMealItems(parsed.items)
     if (!items.length) throw new Error('ai_empty_items')
     return {
@@ -1533,6 +1647,13 @@ function estimateMealPhotoWithAi(imageBase64, mimeType) {
       message: parsed.message || '已根据图片生成估算，请确认后再入账。',
     }
   })
+}
+
+function detectImageMimeType(bytes) {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg'
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png'
+  if (bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp'
+  return null
 }
 
 function validatePhotoInput(payload) {
@@ -1567,6 +1688,9 @@ function validatePhotoInput(payload) {
   if (bytes.length > MAX_PHOTO_BYTES) {
     return { error: 'image exceeds 1MB limit' }
   }
+  const detectedMimeType = detectImageMimeType(bytes)
+  if (!detectedMimeType) return { error: 'unrecognized image content' }
+  if (detectedMimeType !== mimeType) return { error: 'image content does not match mimeType' }
   return { imageBase64: compact, mimeType, sizeBytes: bytes.length }
 }
 
@@ -1750,23 +1874,36 @@ async function recoverExpiredPhotoReservations(userId, openid, nowMs = Date.now(
   return recovered
 }
 
-function aiTextEstimate(payload, openid) {
+async function aiTextEstimate(payload, openid) {
   if (!payload || !payload.description) {
-    return Promise.resolve({ code: 400, data: null, message: 'description required' })
+    return { code: 400, data: null, message: 'description required' }
   }
-  const desc = String(payload.description)
+  const desc = String(payload.description).trim()
+  if (!desc) return { code: 400, data: null, message: 'description required' }
+  if (desc.length > 500) return { code: 400, data: null, message: 'description too long' }
 
   const config = getAiConfig()
   if (!config.enabled) {
-    return Promise.resolve({ code: 503, data: null, message: 'ai_not_configured' })
+    return { code: 503, data: null, message: 'ai_not_configured' }
   }
-  return estimateMealTextWithAi(desc).then((data) => ({
-    code: 0,
-    data: { ...data, provider: 'mimo', model: config.model },
-    message: 'ok',
-  })).catch((err) => {
-    return { code: 503, data: null, message: `ai estimate failed: ${err.message || 'unknown'}` }
-  })
+  const usage = await reserveAiTextUsage(openid, getBeijingDate()).catch(() => ({ allowed: false, unavailable: true }))
+  if (!usage.allowed) {
+    return usage.unavailable
+      ? { code: 503, data: null, message: 'ai_usage_tracking_unavailable' }
+      : { code: 429, data: { remaining: 0 }, message: 'ai_daily_limit_reached' }
+  }
+  try {
+    const data = await estimateMealTextWithAi(desc, openid)
+    return {
+      code: 0,
+      data: { ...data, provider: 'openai', model: config.model, remainingToday: usage.remaining },
+      message: 'ok',
+    }
+  } catch (error) {
+    console.error('OpenAI text estimate failed', error && error.message)
+    const publicError = publicAiError(error)
+    return { code: publicError.code, data: null, message: publicError.message }
+  }
 }
 
 async function aiPhotoEstimate(payload, openid) {
@@ -1815,7 +1952,7 @@ async function aiPhotoEstimate(payload, openid) {
   }
 
   try {
-    const aiResult = await estimateMealPhotoWithAi(photo.imageBase64, photo.mimeType)
+    const aiResult = await estimateMealPhotoWithAi(photo.imageBase64, photo.mimeType, openid)
     const responseData = {
       estimate: aiResult.estimate,
       items: aiResult.items,
@@ -1828,7 +1965,7 @@ async function aiPhotoEstimate(payload, openid) {
       image: { mimeType: photo.mimeType, sizeBytes: photo.sizeBytes },
       mimeType: photo.mimeType,
       imageSizeBytes: photo.sizeBytes,
-      provider: 'mimo',
+      provider: 'openai',
       model: config.model,
     }
     const committed = await commitPhotoQuota(usageId, responseData)
@@ -1837,13 +1974,16 @@ async function aiPhotoEstimate(payload, openid) {
     try {
       await rollbackPhotoQuota(user._id, usageId)
     } catch (rollbackError) {
+      console.error('OpenAI photo estimate and quota rollback failed', err && err.message, rollbackError && rollbackError.message)
       return {
         code: 500,
         data: null,
-        message: `ai photo estimate failed and quota rollback failed: ${err.message || 'unknown'}; ${rollbackError.message || 'unknown'}`,
+        message: 'ai_quota_rollback_failed',
       }
     }
-    return { code: 503, data: null, message: `ai photo estimate failed: ${err.message || 'unknown'}` }
+    console.error('OpenAI photo estimate failed', err && err.message)
+    const publicError = publicAiError(err)
+    return { code: publicError.code, data: null, message: publicError.message }
   }
 }
 
@@ -1907,6 +2047,33 @@ async function deleteAccount(payload, openid) {
   return executeAccountDeletion(openid)
 }
 
+function normalizeFeedback(payload) {
+  const content = String((payload && payload.content) || '').trim()
+  if (content.length < 5 || content.length > 1000) return { error: 'feedback content must be 5-1000 characters' }
+  return { content, category: String((payload && payload.category) || 'general').trim().slice(0, 30) || 'general' }
+}
+
+async function createFeedback(payload, openid) {
+  const normalized = normalizeFeedback(payload)
+  if (normalized.error) return { code: 400, data: null, message: normalized.error }
+  const document = {
+    openid,
+    ...normalized,
+    status: 'new',
+    createdAt: db.serverDate(),
+  }
+  const created = await createDocumentIdempotently(
+    'feedback',
+    'feedback',
+    openid,
+    payload.clientRequestId,
+    document,
+    normalized,
+  )
+  if (created.conflict) return { code: 409, data: null, message: 'idempotency_conflict' }
+  return { code: 0, data: { id: created.document._id, deduplicated: created.deduplicated }, message: 'ok' }
+}
+
 async function invokeWithTrustedOpenid(event = {}, openid = '') {
   try {
     const trustedOpenid = typeof openid === 'string' ? openid.trim() : ''
@@ -1945,6 +2112,7 @@ async function invokeWithTrustedOpenid(event = {}, openid = '') {
       getDeficitTrend,
       aiTextEstimate,
       aiPhotoEstimate,
+      createFeedback,
       deleteAccount,
     }[action]
 
@@ -1973,9 +2141,11 @@ exports.main = async (event = {}) => {
 exports.__test = {
   ACCOUNT_COLLECTIONS,
   AI_REQUEST_TIMEOUT_MS,
+  AI_TEXT_DAILY_LIMIT,
   DAILY_ACTIVITY_BASELINE_MULTIPLIER,
   PHOTO_RESERVATION_TIMEOUT_MS,
   awardDailyStarIfEligible,
+  buildOpenAIResponsesBody,
   buildDailyPlanSnapshot,
   calcTDEE,
   calculateDailySummaryMetrics,
@@ -1984,11 +2154,13 @@ exports.__test = {
   calculatePlanMetrics,
   canonicalizeFingerprintValue,
   countCompleteMealSlots,
+  detectImageMimeType,
   createRequestFingerprint,
   energyMetricsOnly,
   executeAccountDeletion,
   formatEntitlementResponse,
   getExerciseMet,
+  getAiConfig,
   getMissingPlanSnapshotDates,
   idempotentDocumentId,
   invokeWithTrustedOpenid,
@@ -1996,10 +2168,13 @@ exports.__test = {
   isWritableRecordDate,
   isValidMealType,
   normalizeClientRequestId,
+  normalizeFeedback,
   normalizeTrendDays,
   planPhotoQuotaRollback,
   planPhotoQuotaReservation,
   planPhotoQuotaReservationWithRecovery,
+  parseOpenAIResponsesOutput,
+  publicAiError,
   resolveExistingIdempotentDocument,
   resolvePlanEnergyForDate,
   selectCalibrationWeight,

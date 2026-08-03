@@ -29,6 +29,7 @@ import type {
   MealItemInput,
   WeightEntry,
 } from '../../api/client'
+import { RecordIntent, localDateString, takeRecordIntent } from '../../utils/recordIntent'
 import './index.scss'
 
 const MEAL_SLOTS = [
@@ -120,6 +121,7 @@ type DetailKind = 'meal' | 'exercise' | 'weight'
 
 const EMPTY_DETAILS: DayDetails = { meals: [], exercises: [], weights: [] }
 const MAX_PHOTO_BYTES = 1024 * 1024
+const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const EXERCISE_TIMEOUT_MS = 15000
 
 function makeEmptyRow(): MealRow {
@@ -177,6 +179,29 @@ function readFileAsBase64(filePath: string): Promise<string> {
   })
 }
 
+function requirePlatformPrivacyAuthorization(): Promise<void> {
+  const wechat = typeof wx !== 'undefined' ? wx as any : null
+  if (!wechat || typeof wechat.requirePrivacyAuthorize !== 'function') return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    wechat.requirePrivacyAuthorize({ success: resolve, fail: reject })
+  })
+}
+
+async function chooseOneImage(): Promise<{ tempFilePath: string; fileType?: string }> {
+  if (Taro.canIUse('chooseMedia')) {
+    const result = await Taro.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sourceType: ['camera', 'album'],
+      sizeType: ['compressed'],
+    })
+    return result.tempFiles[0]
+  }
+  const legacy = await Taro.chooseImage({ count: 1, sourceType: ['camera', 'album'], sizeType: ['compressed'] })
+  const first = legacy.tempFiles?.[0]
+  return { tempFilePath: first?.path || legacy.tempFilePaths[0], fileType: 'image' }
+}
+
 function base64ByteLength(value: string): number {
   const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0
   return Math.floor(value.length * 3 / 4) - padding
@@ -232,7 +257,7 @@ function recentDates(n: number): string[] {
 }
 
 function todayDateString(): string {
-  return recentDates(1)[0]
+  return localDateString()
 }
 
 function mockToExtended(mock: CalendarDayData): ExtendedDayData {
@@ -326,6 +351,7 @@ export default function RecordPage() {
   const [weightSubmitting, setWeightSubmitting] = useState(false)
   const [weightError, setWeightError] = useState('')
   const [editingWeightId, setEditingWeightId] = useState<string | null>(null)
+  const [pendingIntent, setPendingIntent] = useState<RecordIntent | null>(null)
 
   const selected = calendarData[selectedIdx]
   const selectedDateRef = useRef(selected?.date ?? todayDateString())
@@ -336,6 +362,8 @@ export default function RecordPage() {
   const mealRequestFingerprintRef = useRef('')
   const weightClientRequestIdRef = useRef('')
   const weightRequestFingerprintRef = useRef('')
+  const exerciseInitialRef = useRef('')
+  const weightInitialRef = useRef('')
   selectedDateRef.current = selected?.date ?? selectedDateRef.current
 
   useEffect(() => () => setTabBarVisible(true), [])
@@ -425,68 +453,64 @@ export default function RecordPage() {
       setLoading(false)
       return
     }
-    const [results, weightsRes, planRes] = await Promise.all([
-      Promise.allSettled(dates.map((date) => getDailySummary(date))),
-      getWeights(dates[0], dates[dates.length - 1]),
-      getCurrentPlan(),
-    ])
-    if (requestSeq !== calendarRequestSeq.current) return
-    if (planRes.ok) setCurrentWeightKg(planRes.data.plan.currentWeightKg)
-    const weightByDate = new Map<string, number>()
-    if (weightsRes.ok) {
-      weightsRes.data.weights.forEach((item) => weightByDate.set(item.date, item.weightKg))
-      if (!planRes.ok && weightsRes.data.weights.length > 0) {
-        const sortedWeights = [...weightsRes.data.weights].sort((a, b) => a.date.localeCompare(b.date))
-        const latestWeight = sortedWeights[sortedWeights.length - 1]
-        if (latestWeight) setCurrentWeightKg(latestWeight.weightKg)
+    try {
+      const [results, weightsRes, planRes] = await Promise.all([
+        Promise.allSettled(dates.map((date) => getDailySummary(date))),
+        getWeights(dates[0], dates[dates.length - 1]),
+        getCurrentPlan(),
+      ])
+      if (requestSeq !== calendarRequestSeq.current) return
+      if (planRes.ok && planRes.data.plan) setCurrentWeightKg(planRes.data.plan.currentWeightKg)
+      const weightByDate = new Map<string, number>()
+      if (weightsRes.ok) {
+        weightsRes.data.weights.forEach((item) => weightByDate.set(item.date, item.weightKg))
+        if ((!planRes.ok || !planRes.data.plan) && weightsRes.data.weights.length > 0) {
+          const sortedWeights = [...weightsRes.data.weights].sort((a, b) => a.date.localeCompare(b.date))
+          const latestWeight = sortedWeights[sortedWeights.length - 1]
+          if (latestWeight) setCurrentWeightKg(latestWeight.weightKg)
+        }
       }
+      const failedSummaryCount = results.filter((result) => (
+        result.status === 'rejected' || !result.value.ok
+      )).length
+      if (failedSummaryCount > 0 || !weightsRes.ok) {
+        setCalendarError('部分记录同步失败，空白数据可能不完整。请点击重试。')
+      }
+      const updated = dates.map((date, index) => {
+        const result = results[index]
+        const fallback = mockToExtended(FALLBACK_CALENDAR[index])
+        const day = result.status === 'fulfilled' && result.value.ok && result.value.data
+          ? summaryToDayData(date, result.value.data)
+          : fallback
+        return { ...day, weight: weightByDate.get(date) ?? null }
+      })
+      const preferredDate = selectedDateRef.current
+      setCalendarData(updated)
+      const preferredIdx = updated.findIndex((day) => day.date === preferredDate)
+      setSelectedIdx(preferredIdx >= 0 ? preferredIdx : updated.length - 1)
+    } catch {
+      if (requestSeq === calendarRequestSeq.current) {
+        setCalendarError('记录同步失败，请检查网络后重试。')
+      }
+    } finally {
+      if (requestSeq === calendarRequestSeq.current) setLoading(false)
     }
-    const failedSummaryCount = results.filter((result) => (
-      result.status === 'rejected' || !result.value.ok
-    )).length
-    if (failedSummaryCount > 0 || !weightsRes.ok) {
-      setCalendarError('部分记录同步失败，空白数据可能不完整。请点击重试。')
-    }
-    const updated = dates.map((date, index) => {
-      const result = results[index]
-      const fallback = mockToExtended(FALLBACK_CALENDAR[index])
-      const day = result.status === 'fulfilled' && result.value.ok && result.value.data
-        ? summaryToDayData(date, result.value.data)
-        : fallback
-      return { ...day, weight: weightByDate.get(date) ?? null }
-    })
-    const preferredDate = selectedDateRef.current
-    setCalendarData(updated)
-    const preferredIdx = updated.findIndex((day) => day.date === preferredDate)
-    setSelectedIdx(preferredIdx >= 0 ? preferredIdx : updated.length - 1)
-    setLoading(false)
   }, [])
 
-  // ── useDidShow: 读取 pendingRecordAction ──
+  // 跨页快捷入口先定位目标日期，再由下方 effect 打开对应弹窗。
   useDidShow(() => {
-    void loadCalendar().then(() => loadDayDetails(selectedDateRef.current)).catch(() => {})
-    Taro.getStorage({ key: 'pendingRecordAction' })
-      .then((res) => {
-        const action = typeof res.data === 'string'
-          ? JSON.parse(res.data) as { type: string; slot?: string; mode?: string }
-          : res.data as { type: string; slot?: string; mode?: string }
-        Taro.removeStorage({ key: 'pendingRecordAction' })
-        if (action.type === 'meal' && action.slot) {
-          const slotObj = MEAL_SLOTS.find((s) => s.key === action.slot)
-          if (slotObj) {
-            openMealModal(slotObj.key)
-            if (action.mode === 'photo') {
-              Taro.nextTick(() => {
-                handleMealPhoto()
-              })
-            }
-          }
-        } else if (action.type === 'exercise') {
-          openExerciseModal(EXERCISE_TYPES[0].type)
-        } else if (action.type === 'weight') {
-          openWeightModal()
-        }
-      })
+    const action = takeRecordIntent()
+    const visibleDates = recentDates(DAYS_COUNT)
+    const requestedDate = action && visibleDates.includes(action.date)
+      ? action.date
+      : selectedDateRef.current
+    selectedDateRef.current = requestedDate
+    const requestedIdx = calendarData.findIndex((day) => day.date === requestedDate)
+    if (requestedIdx >= 0) setSelectedIdx(requestedIdx)
+    setPendingIntent(null)
+    void loadCalendar()
+      .then(() => loadDayDetails(requestedDate))
+      .then(() => setPendingIntent(action && action.type !== 'calendar' ? { ...action, date: requestedDate } : null))
       .catch(() => {})
   })
 
@@ -642,18 +666,23 @@ export default function RecordPage() {
   }
 
   // ── AI 拍照识别 ──
-  const handleMealPhoto = async () => {
+  const handleMealPhoto = async (initialUsePoint = false) => {
     if (mealLoading) return
     setMealPhotoError('')
-    setMealLoading(true)
     try {
-      const chooseRes = await Taro.chooseMedia({
-        count: 1,
-        mediaType: ['image'],
-        sourceType: ['camera', 'album'],
-        sizeType: ['compressed'],
-      })
-      const chosenFile = chooseRes.tempFiles[0]
+      await requirePlatformPrivacyAuthorization()
+      if (!Taro.getStorageSync('aiPhotoPrivacyConsent')) {
+        const consent = await Taro.showModal({
+          title: '照片识别说明',
+          content: '所选照片会发送给第三方 AI 服务 OpenAI 进行本次识别。本服务不保存原图，识别结果会先由你确认，再写入饮食记录。',
+          cancelText: '暂不使用',
+          confirmText: '同意并继续',
+        })
+        if (!consent.confirm) return
+        Taro.setStorageSync('aiPhotoPrivacyConsent', true)
+      }
+      setMealLoading(true)
+      const chosenFile = await chooseOneImage()
       if (!chosenFile?.tempFilePath) return
 
       let uploadPath = chosenFile.tempFilePath
@@ -670,6 +699,10 @@ export default function RecordPage() {
         return
       }
       const mimeType = inferImageMimeType(uploadPath, chosenFile.fileType)
+      if (!SUPPORTED_PHOTO_MIME_TYPES.has(mimeType)) {
+        setMealPhotoError('暂不支持这种图片格式，请选择 JPG、PNG 或 WebP 图片。')
+        return
+      }
       const imageSizeBytes = base64ByteLength(base64)
       const clientRequestId = makeClientRequestId('ai-photo')
 
@@ -677,10 +710,10 @@ export default function RecordPage() {
         return aiPhotoEstimate(base64, { mimeType, usePoint, imageSizeBytes, clientRequestId })
       }
 
-      let res = await tryEstimate(false)
+      let res = await tryEstimate(initialUsePoint)
 
       // 如果失败且可能是配额/积分问题，提示是否用积分重试
-      if (!res.ok && res.error && /quota|point|limit|余额|积分|次数/i.test(res.error)) {
+      if (!initialUsePoint && !res.ok && res.error && /quota|point|limit|余额|积分|次数/i.test(res.error)) {
         const confirmRes = await Taro.showModal({
           title: '提示',
           content: '免费次数已用完，是否使用积分继续识别？',
@@ -746,9 +779,10 @@ export default function RecordPage() {
       if (!hasAnyValue) return ''
       if (!row.foodName.trim()) return '请填写食物名称。'
       if (!(parseFloat(row.quantityG) > 0)) return '请填写大于 0 的克数。'
-      if (!(parseFloat(row.kcal) > 0)) return '热量必须大于 0 kcal。'
+      const kcal = parseFloat(row.kcal)
+      if (!Number.isFinite(kcal) || kcal < 0) return '请填写不小于 0 kcal 的热量。'
       const hasMacro = [row.carbG, row.proteinG, row.fatG].some((value) => parseFloat(value) > 0)
-      if (!hasMacro) return '碳水、蛋白质、脂肪至少一项必须大于 0。'
+      if (!hasMacro && !(activeMealSlot === 'drink' && kcal === 0)) return '碳水、蛋白质、脂肪至少一项必须大于 0。'
       return ''
     })
     setMealRowErrors(rowErrors)
@@ -822,6 +856,17 @@ export default function RecordPage() {
   const handleMealStatus = async (status: 'skipped' | 'fasting') => {
     if (mealLoading) return
     const target = getTargetDay()
+    const sameSlotMeals = details.meals.filter((meal) => meal.mealSlot === activeMealSlot && meal.id !== editingMealId)
+    if (!editingMealId && sameSlotMeals.length > 0) {
+      const confirmation = await Taro.showModal({
+        title: `替换${slotLabel}记录？`,
+        content: `改为${status === 'fasting' ? '轻断食' : '本餐跳过'}后，已有食物和热量会从当天统计中移除。`,
+        confirmText: '确认替换',
+        cancelText: '返回检查',
+        confirmColor: '#B06A28',
+      })
+      if (!confirmation.confirm) return
+    }
     setMealSubmitError('')
     setMealLoading(true)
     try {
@@ -842,9 +887,17 @@ export default function RecordPage() {
         items: [],
         clientRequestId: editingMealId ? undefined : mealClientRequestIdRef.current,
       }
-      const res = editingMealId
+      let res = editingMealId
         ? await updateMeal(editingMealId, body)
-        : await createMeal(body)
+        : sameSlotMeals.length > 0
+          ? await updateMeal(sameSlotMeals[0].id, body)
+          : await createMeal(body)
+      if (res.ok && !editingMealId && sameSlotMeals.length > 1) {
+        const removals = await Promise.all(sameSlotMeals.slice(1).map((meal) => deleteMeal(meal.id)))
+        if (removals.some((result) => !result.ok)) {
+          res = { ok: false, error: 'meal_replacement_partial' }
+        }
+      }
       if (!res.ok) {
         setMealSubmitError('云端暂时未保存本餐状态，请稍后重试。')
         Taro.showToast({ title: '记录失败，请重试', icon: 'none' })
@@ -866,7 +919,9 @@ export default function RecordPage() {
   const openExerciseModal = (exerciseType: string) => {
     setTabBarVisible(false)
     setEditingExerciseId(null)
-    setExerciseRows([makeExerciseRow(exerciseType, currentWeightKg ?? selected?.weight ?? null)])
+    const rows = [makeExerciseRow(exerciseType, currentWeightKg ?? selected?.weight ?? null)]
+    setExerciseRows(rows)
+    exerciseInitialRef.current = JSON.stringify(rows)
     setExerciseSubmitting(false)
     setExerciseError('')
     setExerciseModalOpen(true)
@@ -875,7 +930,7 @@ export default function RecordPage() {
   const openExerciseEditModal = (exercise: ExerciseEntry) => {
     setTabBarVisible(false)
     setEditingExerciseId(exercise.id)
-    setExerciseRows([
+    const rows = [
       makeExerciseRow(
         exercise.exerciseType,
         currentWeightKg ?? selected?.weight ?? null,
@@ -883,7 +938,9 @@ export default function RecordPage() {
         exercise.confirmedKcal,
         exercise.calorieSource !== 'met',
       ),
-    ])
+    ]
+    setExerciseRows(rows)
+    exerciseInitialRef.current = JSON.stringify(rows)
     setExerciseSubmitting(false)
     setExerciseError('')
     setExerciseModalOpen(true)
@@ -897,6 +954,22 @@ export default function RecordPage() {
     setExerciseSubmitting(false)
     setExerciseError('')
     setEditingExerciseId(null)
+    exerciseInitialRef.current = ''
+  }
+
+  const requestCloseExerciseModal = async () => {
+    if (exerciseSubmitting) return
+    if (exerciseInitialRef.current && JSON.stringify(exerciseRows) !== exerciseInitialRef.current) {
+      const result = await Taro.showModal({
+        title: '放弃本次修改？',
+        content: '已填写的运动内容尚未保存。',
+        confirmText: '放弃',
+        cancelText: '继续填写',
+        confirmColor: '#B64A3B',
+      })
+      if (!result.confirm) return
+    }
+    closeExerciseModal()
   }
 
   const updateExerciseRow = (idx: number, field: keyof ExerciseRow, value: string) => {
@@ -957,6 +1030,11 @@ export default function RecordPage() {
     if (valid.length === 0) {
       setExerciseError('请至少填写一项时长大于 0 分钟的运动。')
       Taro.showToast({ title: '请至少添加一项运动', icon: 'none' })
+      return
+    }
+    if (valid.some((row) => parseFloat(row.durationMin) > 1440)) {
+      setExerciseError('单项运动时长不能超过 1440 分钟。')
+      Taro.showToast({ title: '运动时长不能超过 1440 分钟', icon: 'none' })
       return
     }
     setExerciseError('')
@@ -1031,10 +1109,15 @@ export default function RecordPage() {
 
   // ── 体重弹窗 ──
   const openWeightModal = () => {
+    const existingWeight = details.weights[details.weights.length - 1]
     setTabBarVisible(false)
-    setEditingWeightId(null)
-    setWeightValue(selected?.weight != null ? String(selected.weight) : '')
-    setWeighingContext('morning')
+    setEditingWeightId(existingWeight?.id ?? null)
+    setWeightValue(existingWeight ? String(existingWeight.weightKg) : selected?.weight != null ? String(selected.weight) : '')
+    setWeighingContext(/evening|after_meal|晚|饭后/i.test(existingWeight?.weighingContext ?? '') ? 'evening' : 'morning')
+    weightInitialRef.current = JSON.stringify({
+      value: existingWeight ? String(existingWeight.weightKg) : selected?.weight != null ? String(selected.weight) : '',
+      context: /evening|after_meal|晚|饭后/i.test(existingWeight?.weighingContext ?? '') ? 'evening' : 'morning',
+    })
     setWeightSubmitting(false)
     setWeightError('')
     weightClientRequestIdRef.current = makeClientRequestId('weight')
@@ -1042,11 +1125,28 @@ export default function RecordPage() {
     setWeightModalOpen(true)
   }
 
+  useEffect(() => {
+    if (!pendingIntent || selected?.date !== pendingIntent.date) return
+    setPendingIntent(null)
+    if (pendingIntent.type === 'meal') {
+      openMealModal(pendingIntent.slot)
+      if (pendingIntent.mode === 'photo') Taro.nextTick(() => handleMealPhoto(Boolean(pendingIntent.usePoint)))
+    } else if (pendingIntent.type === 'exercise') {
+      openExerciseModal(EXERCISE_TYPES[0].type)
+    } else if (pendingIntent.type === 'weight') {
+      openWeightModal()
+    }
+  }, [pendingIntent, selected?.date])
+
   const openWeightEditModal = (weight: WeightEntry) => {
     setTabBarVisible(false)
     setEditingWeightId(weight.id)
     setWeightValue(String(weight.weightKg))
     setWeighingContext(/evening|after_meal|晚|饭后/i.test(weight.weighingContext ?? '') ? 'evening' : 'morning')
+    weightInitialRef.current = JSON.stringify({
+      value: String(weight.weightKg),
+      context: /evening|after_meal|晚|饭后/i.test(weight.weighingContext ?? '') ? 'evening' : 'morning',
+    })
     setWeightSubmitting(false)
     setWeightError('')
     weightClientRequestIdRef.current = ''
@@ -1064,15 +1164,32 @@ export default function RecordPage() {
     setEditingWeightId(null)
     weightClientRequestIdRef.current = ''
     weightRequestFingerprintRef.current = ''
+    weightInitialRef.current = ''
+  }
+
+  const requestCloseWeightModal = async () => {
+    if (weightSubmitting) return
+    const current = JSON.stringify({ value: weightValue, context: weighingContext })
+    if (weightInitialRef.current && current !== weightInitialRef.current) {
+      const result = await Taro.showModal({
+        title: '放弃体重修改？',
+        content: '当前输入尚未保存。',
+        confirmText: '放弃',
+        cancelText: '继续填写',
+        confirmColor: '#B64A3B',
+      })
+      if (!result.confirm) return
+    }
+    closeWeightModal()
   }
 
   const handleWeightConfirm = async () => {
     if (weightSubmitting) return
     const target = getTargetDay()
     const val = parseFloat(weightValue)
-    if (!val || val <= 0) {
-      setWeightError('请输入有效体重。')
-      Taro.showToast({ title: '请输入有效体重', icon: 'none' })
+    if (!Number.isFinite(val) || val < 20 || val > 250) {
+      setWeightError('请输入 20-250 kg 之间的体重。')
+      Taro.showToast({ title: '体重需在 20-250 kg', icon: 'none' })
       return
     }
     setWeightError('')
@@ -1182,11 +1299,12 @@ export default function RecordPage() {
               </View>
             </View>
           )}
-          <ScrollView className='record-calendar-scroll' scrollX enhanced showScrollbar={false}>
+          <ScrollView className='record-calendar-scroll' scrollX enhanced showScrollbar={false} scrollIntoView={selected ? `record-day-${selected.date}` : undefined} scrollWithAnimation>
             <View className='record-calendar-row'>
               {calendarData.map((day, idx) => (
                 <View
                   key={day.date}
+                  id={`record-day-${day.date}`}
                   className={`record-day ${idx === selectedIdx ? 'record-day--active' : ''}`}
                   onClick={() => setSelectedIdx(idx)}
                 >
@@ -1546,7 +1664,7 @@ export default function RecordPage() {
                   </View>
                   <View
                     className={`meal-ai-btn meal-ai-btn--photo ${mealLoading ? 'meal-control--disabled' : ''}`}
-                    onClick={handleMealPhoto}
+                    onClick={() => handleMealPhoto()}
                   >
                     <Text className='meal-ai-btn-text'>拍照识别</Text>
                   </View>
@@ -1597,13 +1715,13 @@ export default function RecordPage() {
 
       {/* ── 运动弹窗 ── */}
       {exerciseModalOpen && (
-        <View className={`meal-modal-mask ${exerciseSubmitting ? 'meal-modal-mask--locked' : ''}`} onClick={() => closeExerciseModal()}>
+        <View className={`meal-modal-mask ${exerciseSubmitting ? 'meal-modal-mask--locked' : ''}`} onClick={requestCloseExerciseModal}>
           <View className='meal-modal exercise-modal' onClick={(e) => e.stopPropagation()}>
             <View className='meal-modal-header'>
               <Text className='meal-modal-title'>{editingExerciseId ? '修改运动' : '记录运动'}</Text>
               <View
                 className={`meal-modal-close ${exerciseSubmitting ? 'meal-modal-close--disabled' : ''}`}
-                onClick={() => closeExerciseModal()}
+                onClick={requestCloseExerciseModal}
               >
                 <Text className='meal-modal-close-text'>✕</Text>
               </View>
@@ -1690,7 +1808,7 @@ export default function RecordPage() {
               <Button
                 className={`meal-footer-btn meal-footer-btn--cancel ${exerciseSubmitting ? 'meal-footer-btn--disabled' : ''}`}
                 disabled={exerciseSubmitting}
-                onClick={() => closeExerciseModal()}
+                onClick={requestCloseExerciseModal}
               >
                 <Text className='meal-footer-btn-text'>取消</Text>
               </Button>
@@ -1710,13 +1828,13 @@ export default function RecordPage() {
 
       {/* ── 体重弹窗 ── */}
       {weightModalOpen && (
-        <View className={`meal-modal-mask ${weightSubmitting ? 'meal-modal-mask--locked' : ''}`} onClick={() => closeWeightModal()}>
+        <View className={`meal-modal-mask ${weightSubmitting ? 'meal-modal-mask--locked' : ''}`} onClick={requestCloseWeightModal}>
           <View className='meal-modal weight-modal' onClick={(e) => e.stopPropagation()}>
             <View className='meal-modal-header'>
               <Text className='meal-modal-title'>{editingWeightId ? '修改体重' : '体重打卡'}</Text>
               <View
                 className={`meal-modal-close ${weightSubmitting ? 'meal-modal-close--disabled' : ''}`}
-                onClick={() => closeWeightModal()}
+                onClick={requestCloseWeightModal}
               >
                 <Text className='meal-modal-close-text'>✕</Text>
               </View>
@@ -1784,7 +1902,7 @@ export default function RecordPage() {
               <Button
                 className={`meal-footer-btn meal-footer-btn--cancel ${weightSubmitting ? 'meal-footer-btn--disabled' : ''}`}
                 disabled={weightSubmitting}
-                onClick={() => closeWeightModal()}
+                onClick={requestCloseWeightModal}
               >
                 <Text className='meal-footer-btn-text'>取消</Text>
               </Button>

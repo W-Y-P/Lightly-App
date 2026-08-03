@@ -1,7 +1,7 @@
-import { View, Text } from '@tarojs/components'
-import { useState } from 'react'
+import { Text, Textarea, View } from '@tarojs/components'
+import { useEffect, useRef, useState } from 'react'
 import Taro, { useDidShow } from '@tarojs/taro'
-import { getEntitlement, deleteAccount, ensureAuthReady, getAuthMode, resetAuth } from '../../api/client'
+import { createFeedback, getEntitlement, deleteAccount, ensureAuthReady, getAuthMode, resetAuth } from '../../api/client'
 import { resetTodayData } from '../../store/todayDataStore'
 import './index.scss'
 
@@ -26,17 +26,25 @@ export default function ProfilePage() {
   const [accountId, setAccountId] = useState('')
   const [loadFailed, setLoadFailed] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackContent, setFeedbackContent] = useState('')
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false)
+  const profileRequestSeq = useRef(0)
+
+  useEffect(() => () => { void Taro.showTabBar({ animation: false }).catch(() => {}) }, [])
 
   useDidShow(() => {
     loadProfile()
   })
 
   async function loadProfile() {
+    const requestSeq = ++profileRequestSeq.current
     setLoadFailed(false)
     setEntitlement(null)
     setIdentity('loading')
     setAccountId('')
     const authed = await ensureAuthReady()
+    if (requestSeq !== profileRequestSeq.current) return
 
     if (!authed) {
       setLoadFailed(true)
@@ -47,6 +55,7 @@ export default function ProfilePage() {
     setAccountId(Taro.getStorageSync('userId') || '')
 
     const res = await getEntitlement()
+    if (requestSeq !== profileRequestSeq.current) return
     if (res.ok) {
       setEntitlement(res.data)
     } else {
@@ -64,21 +73,56 @@ export default function ProfilePage() {
   }
 
   const showPrivacy = () => {
-    Taro.showModal({
+    const fallback = () => Taro.showModal({
       title: '隐私说明',
-      content: '你的身体数据和饮食记录仅用于生成个人计划与趋势分析。我们不会提供数据导出，也不会将健康数据用于公开展示。删除账号后，相关数据将永久清除。',
+      content: '你的身体数据和饮食记录仅用于生成个人计划与趋势分析。使用拍照识别时，所选照片会发送给第三方 AI 服务 OpenAI 处理，本服务不保存原图。删除账号后，相关数据将永久清除。',
       showCancel: false,
       confirmText: '知道了',
     })
+    const wechat = typeof wx !== 'undefined' ? wx as any : null
+    if (wechat && typeof wechat.openPrivacyContract === 'function') {
+      wechat.openPrivacyContract({ fail: fallback })
+    } else {
+      void fallback()
+    }
   }
 
   const showFeedback = () => {
-    Taro.showModal({
-      title: '意见反馈筹备中',
-      content: '反馈通道正在筹备，目前暂不能提交。开放后会在这里明确显示入口。',
-      showCancel: false,
-      confirmText: '知道了',
-    })
+    setFeedbackContent('')
+    setFeedbackOpen(true)
+    void Taro.hideTabBar({ animation: false }).catch(() => {})
+  }
+
+  const closeFeedback = () => {
+    if (feedbackSubmitting) return
+    setFeedbackOpen(false)
+    setFeedbackContent('')
+    void Taro.showTabBar({ animation: false }).catch(() => {})
+  }
+
+  const submitFeedback = async () => {
+    if (feedbackSubmitting) return
+    const content = feedbackContent.trim()
+    if (content.length < 5) {
+      Taro.showToast({ title: '请至少填写 5 个字', icon: 'none' })
+      return
+    }
+    setFeedbackSubmitting(true)
+    try {
+      const result = await createFeedback(content)
+      if (result.ok) {
+        setFeedbackOpen(false)
+        setFeedbackContent('')
+        void Taro.showTabBar({ animation: false }).catch(() => {})
+        Taro.showToast({ title: '感谢你的反馈', icon: 'success' })
+      } else {
+        Taro.showToast({ title: '提交失败，请稍后重试', icon: 'none' })
+      }
+    } catch {
+      Taro.showToast({ title: '提交失败，请稍后重试', icon: 'none' })
+    } finally {
+      setFeedbackSubmitting(false)
+    }
   }
 
   const showAbout = () => {
@@ -227,11 +271,8 @@ export default function ProfilePage() {
           </View>
           <View className='profile-menu-item' onClick={showFeedback}>
             <View className='profile-menu-copy'>
-              <View className='profile-menu-title-row'>
-                <Text className='profile-menu-label'>意见反馈</Text>
-                <Text className='profile-pending'>筹备中</Text>
-              </View>
-              <Text className='profile-menu-desc'>反馈通道开放后可在此提交</Text>
+              <Text className='profile-menu-label'>意见反馈</Text>
+              <Text className='profile-menu-desc'>提交问题或改进建议</Text>
             </View>
             <Text className='profile-menu-arrow'>›</Text>
           </View>
@@ -251,6 +292,31 @@ export default function ProfilePage() {
         <Text className='profile-version'>减脂助手 v0.1.0</Text>
         <View className='profile-bottom-spacer' />
       </View>
+
+      {feedbackOpen ? (
+        <View className='profile-modal-layer' catchMove>
+          <View className='profile-modal-backdrop' onClick={closeFeedback} />
+          <View className='profile-feedback-modal'>
+            <Text className='profile-feedback-title'>意见反馈</Text>
+            <Text className='profile-feedback-desc'>请描述所在页面、操作步骤和期望结果，我们会据此改进。</Text>
+            <Textarea
+              className='profile-feedback-input'
+              value={feedbackContent}
+              maxlength={1000}
+              disabled={feedbackSubmitting}
+              placeholder='至少 5 个字'
+              onInput={(event) => setFeedbackContent(event.detail.value)}
+            />
+            <Text className='profile-feedback-count'>{feedbackContent.length}/1000</Text>
+            <View className='profile-feedback-actions'>
+              <View className='profile-feedback-button profile-feedback-button--secondary' onClick={closeFeedback}><Text>取消</Text></View>
+              <View className={`profile-feedback-button profile-feedback-button--primary ${feedbackSubmitting ? 'profile-feedback-button--disabled' : ''}`} onClick={submitFeedback}>
+                <Text>{feedbackSubmitting ? '提交中…' : '提交反馈'}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </View>
   )
 }

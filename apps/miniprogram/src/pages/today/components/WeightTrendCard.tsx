@@ -1,6 +1,7 @@
 import { View, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useTodayData } from '../../../store/todayDataStore'
+import { openRecord } from '../../../utils/recordIntent'
 import './WeightTrendCard.scss'
 
 export default function WeightTrendCard() {
@@ -9,9 +10,11 @@ export default function WeightTrendCard() {
   const maxW = weightTrend.length > 0 ? Math.max(...weightTrend.map(p => p.weight)) : 0
   const range = maxW - minW || 1
 
-  const handleCheckin = () => {
-    Taro.setStorageSync('pendingRecordAction', { type: 'weight' })
-    Taro.switchTab({ url: '/pages/record/index' })
+  const handleTrend = () => void Taro.switchTab({ url: '/pages/trend/index' })
+
+  const handleCheckin = (event: { stopPropagation?: () => void }) => {
+    event.stopPropagation?.()
+    openRecord({ type: 'weight' })
   }
 
   // Build simple bar chart
@@ -21,10 +24,10 @@ export default function WeightTrendCard() {
   })
 
   return (
-    <View className='weight-card' onClick={handleCheckin}>
+    <View className='weight-card' onClick={handleTrend}>
       <View className='weight-header'>
         <Text className='weight-title'>体重趋势</Text>
-        <Text className='weight-link'>记录 ›</Text>
+        <View className='weight-link' onClick={handleCheckin}><Text>记录 ›</Text></View>
       </View>
       <View className='weight-current'>
         <Text className='weight-current-value'>{currentWeight > 0 ? currentWeight : '--'}</Text>

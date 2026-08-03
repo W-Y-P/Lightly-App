@@ -32,7 +32,7 @@
 
 - `apps/miniprogram/cloudfunctions/lightlyApi`
 
-`apps/miniprogram/cloudbaserc.json` 已把 `lightlyApi` 云函数超时时间设置为 30 秒，上游 AI 请求会在 15 秒主动中止，留出额度回滚时间。`lightlyApi/config.json` 也保留同样配置；最终以云端函数详情显示的 `timeout` 为准。
+`apps/miniprogram/cloudbaserc.json` 已把 `lightlyApi` 云函数运行时设置为 Node.js 20.19、超时时间设置为 60 秒。上游 AI 请求会在 24 秒主动中止，留出额度回滚和错误响应时间；最终以云端函数详情显示的配置为准。
 
 部署步骤：
 
@@ -61,7 +61,7 @@ npx -y -p @cloudbase/cli@latest tcb login
 npx -y -p @cloudbase/cli@latest tcb fn deploy lightlyApi \
   -e cloud1-d0gkjbgmncb3b9f04 \
   --dir cloudfunctions/lightlyApi \
-  --runtime Nodejs16.13 \
+  --runtime Nodejs20.19 \
   --force
 ```
 
@@ -71,19 +71,19 @@ npx -y -p @cloudbase/cli@latest tcb fn deploy lightlyApi \
 npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b9f04
 ```
 
-若不使用 CloudBase CLI，也可以在云开发控制台中打开 `lightlyApi`，把函数超时时间手动改为 30 秒。
+若不使用 CloudBase CLI，也可以在云开发控制台中打开 `lightlyApi`，把函数运行时改为 Node.js 20.19，并把超时时间改为 60 秒。
 
 ## 4. 配置大模型环境变量
 
-云函数支持 OpenAI-compatible 的 Mimo 调用，但密钥必须只放在微信云函数环境变量中，不要写入源码、`project.config.json`、构建产物或聊天记录。
+云函数通过 OpenAI Responses API 进行文字和图片识别。密钥必须只放在微信云函数环境变量中，不要写入源码、`project.config.json`、构建产物或聊天记录。
 
 在 `lightlyApi` 云函数配置中添加：
 
-- `AI_BASE_URL`: Mimo 兼容接口 base URL，例如以 `/v1` 结尾的地址；也可以使用 `MIMO_BASE_URL`
-- `AI_API_KEY`: 当前项目使用的 Mimo key；也可以使用 `MIMO_API_KEY`
-- `AI_MODEL`: `mimo-v2.5`（普通模型，禁止配置 Pro）；也可以使用 `MIMO_MODEL`
+- `OPENAI_API_KEY`: OpenAI API key，必填，只配置在云函数环境变量中
+- `OPENAI_MODEL`: 可选，默认 `gpt-5.6-sol`
+- `OPENAI_BASE_URL`: 可选，默认 `https://api.openai.com/v1`；生产环境只接受 HTTPS
 
-如果没有配置 `AI_BASE_URL` 或 `AI_API_KEY`，云函数会明确返回 `ai_not_configured`，不会生成虚假估算，也不会消耗免费次数或积分。拍照识别不会保存原图，只在本次云函数调用内用于估算；模型成功返回且用户确认后，才保存结构化餐食数据。
+如果没有配置 `OPENAI_API_KEY`，云函数会明确返回 `ai_not_configured`，不会生成虚假估算，也不会消耗免费次数或积分。拍照识别不会保存原图，只在本次云函数调用内发送给 OpenAI 处理；成功识别会消耗当次额度，用户确认后才保存结构化餐食数据。
 
 ## 5. 创建云数据库集合
 
@@ -97,6 +97,8 @@ npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b
 - `weights`
 - `pointsLedger`
 - `photoUsage`
+- `aiTextUsage`
+- `feedback`
 
 默认 MVP 阶段建议：
 
@@ -181,15 +183,16 @@ cd apps/miniprogram
 - `getDeficitTrend`
 - `aiTextEstimate`
 - `aiPhotoEstimate`
+- `createFeedback`
 - `deleteAccount`
 
 ## 11. 你需要在微信云后台手动完成的配置
 
 - 创建云环境
 - 开通云开发
-- 创建上述 8 个集合
+- 创建上述 10 个集合
 - 上传部署 `lightlyApi` 云函数
-- 配置大模型环境变量，使用 Mimo 2.5 普通模型，不使用 Pro 模型
+- 在云函数环境变量中配置 `OPENAI_API_KEY`，可按需覆盖 `OPENAI_MODEL`
 - 若使用固定环境，填写 `cloudEnvId`
 - 若使用当前动态环境，设置 `useDynamicCloudEnv = true`
 

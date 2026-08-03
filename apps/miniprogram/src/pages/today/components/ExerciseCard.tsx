@@ -1,14 +1,13 @@
 import { View, Text } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { useTodayData } from '../../../store/todayDataStore'
+import { openRecord } from '../../../utils/recordIntent'
 import './ExerciseCard.scss'
 
 export default function ExerciseCard() {
   const d = useTodayData()
 
   const handleExercise = () => {
-    Taro.setStorageSync('pendingRecordAction', { type: 'exercise' })
-    Taro.switchTab({ url: '/pages/record/index' })
+    openRecord({ type: 'exercise' })
   }
 
   return (
@@ -18,7 +17,7 @@ export default function ExerciseCard() {
           <View className='exercise-icon-line' />
         </View>
         <Text className='exercise-title'>运动记录</Text>
-        <Text className='exercise-link'>查看 ›</Text>
+        <Text className='exercise-link'>记录 ›</Text>
       </View>
       <View className='exercise-stats'>
         <View className='exercise-stat'>

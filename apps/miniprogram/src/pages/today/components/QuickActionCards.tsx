@@ -1,42 +1,38 @@
 import { View, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useTodayData } from '../../../store/todayDataStore'
+import { openRecord } from '../../../utils/recordIntent'
 import './QuickActionCards.scss'
 
 export default function QuickActionCards() {
   const { entitlement } = useTodayData()
 
   const handleWeight = () => {
-    Taro.setStorageSync('pendingRecordAction', { type: 'weight' })
-    Taro.switchTab({ url: '/pages/record/index' })
+    openRecord({ type: 'weight' })
   }
 
   const handlePhoto = () => {
     // If entitlement data is not loaded yet, let the record page handle quota
     if (!entitlement) {
-      Taro.setStorageSync('pendingRecordAction', { type: 'meal', slot: 'other', mode: 'photo' })
-      Taro.switchTab({ url: '/pages/record/index' })
+      openRecord({ type: 'meal', slot: 'other', mode: 'photo' })
       return
     }
 
     const { freeRemaining, pointBalance } = entitlement
 
     if (freeRemaining > 0) {
-      // Has free quota → go to record page with photo mode
-      Taro.setStorageSync('pendingRecordAction', { type: 'meal', slot: 'other', mode: 'photo' })
-      Taro.switchTab({ url: '/pages/record/index' })
+      openRecord({ type: 'meal', slot: 'other', mode: 'photo' })
     } else if (pointBalance > 0) {
       // No free quota but has points → gentle prompt, then navigate on confirm
       Taro.showModal({
         title: 'AI 拍照识别',
         content: `今日免费识别已用完，可通过达标积分兑换额外次数。（当前积分：${pointBalance}）`,
         showCancel: true,
-        confirmText: '去兑换',
+        confirmText: '使用积分',
         cancelText: '取消',
       }).then((res) => {
         if (res.confirm) {
-          Taro.setStorageSync('pendingRecordAction', { type: 'meal', slot: 'other', mode: 'photo' })
-          Taro.switchTab({ url: '/pages/record/index' })
+          openRecord({ type: 'meal', slot: 'other', mode: 'photo', usePoint: true })
         }
       })
     } else {

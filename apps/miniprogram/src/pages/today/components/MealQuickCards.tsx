@@ -1,13 +1,13 @@
 import { View, Text } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { useTodayData } from '../../../store/todayDataStore'
+import { MealSlot, openRecord } from '../../../utils/recordIntent'
 import './MealQuickCards.scss'
 
 export default function MealQuickCards() {
   const { meals } = useTodayData()
 
   /** meal id → record slot mapping; 'snack' maps to 'other' per spec */
-  const SLOT_MAP: Record<string, string> = {
+  const SLOT_MAP: Record<string, MealSlot> = {
     breakfast: 'breakfast',
     lunch: 'lunch',
     dinner: 'dinner',
@@ -17,8 +17,7 @@ export default function MealQuickCards() {
 
   const handleMeal = (meal: { id: string; name: string }) => {
     const slot = SLOT_MAP[meal.id] ?? 'other'
-    Taro.setStorageSync('pendingRecordAction', { type: 'meal', slot })
-    Taro.switchTab({ url: '/pages/record/index' })
+    openRecord({ type: 'meal', slot })
   }
 
   return (

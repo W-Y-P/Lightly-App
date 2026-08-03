@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Text, View } from '@tarojs/components'
-import Taro, { useDidShow } from '@tarojs/taro'
+import { useDidShow } from '@tarojs/taro'
 import { ensureAuthReady, getCurrentPlan, getDeficitTrend, getWeightTrend } from '../../api/client'
+import { openRecord } from '../../utils/recordIntent'
 import './index.scss'
 
 interface WeightPoint { date: string; value: number }
@@ -213,7 +214,8 @@ export default function TrendPage() {
     : 0
   const isLoading = weightState === 'loading' || deficitState === 'loading'
 
-  const goRecord = () => Taro.switchTab({ url: '/pages/record/index' })
+  const recordWeight = () => openRecord({ type: 'weight' })
+  const recordMeal = () => openRecord({ type: 'calendar' })
 
   return (
     <View className='trend-page'>
@@ -269,7 +271,7 @@ export default function TrendPage() {
           <View className='trend-empty'>
             <Text className='trend-empty-title'>这段时间还没有体重记录</Text>
             <Text className='trend-empty-text'>有记录后，这里会显示真实点位和变化方向。</Text>
-            <View className='trend-empty-action' onClick={goRecord}><Text>记录体重</Text></View>
+            <View className='trend-empty-action' onClick={recordWeight}><Text>记录体重</Text></View>
           </View>
         ) : (
           <>
@@ -334,7 +336,7 @@ export default function TrendPage() {
           <View className='trend-empty'>
             <Text className='trend-empty-title'>这段时间还没有完整记录</Text>
             <Text className='trend-empty-text'>记录饮食后，实际缺口会在这里逐日出现。</Text>
-            <View className='trend-empty-action' onClick={goRecord}><Text>开始记录</Text></View>
+            <View className='trend-empty-action' onClick={recordMeal}><Text>开始记录</Text></View>
           </View>
         ) : (
           <>

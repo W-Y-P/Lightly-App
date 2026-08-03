@@ -94,8 +94,12 @@ test('exercise MET mapping uses body weight and preserves manual kcal overrides'
 })
 
 test('photo validation decodes actual bytes and only accepts jpeg, png, or webp', () => {
-  const oneMiB = Buffer.alloc(1024 * 1024, 1).toString('base64')
-  const overOneMiB = Buffer.alloc(1024 * 1024 + 1, 1).toString('base64')
+  const oneMiBBuffer = Buffer.alloc(1024 * 1024, 1)
+  oneMiBBuffer.set([0xff, 0xd8, 0xff], 0)
+  const oneMiB = oneMiBBuffer.toString('base64')
+  const overOneMiBBuffer = Buffer.alloc(1024 * 1024 + 1, 1)
+  overOneMiBBuffer.set([0xff, 0xd8, 0xff], 0)
+  const overOneMiB = overOneMiBBuffer.toString('base64')
   const valid = helpers.validatePhotoInput({ imageBase64: oneMiB, mimeType: 'image/jpeg', imageSizeBytes: 1 })
 
   assert.equal(valid.sizeBytes, 1024 * 1024)
@@ -103,9 +107,57 @@ test('photo validation decodes actual bytes and only accepts jpeg, png, or webp'
   assert.match(helpers.validatePhotoInput({ imageBase64: 'AA==', mimeType: 'image/gif' }).error, /mimeType/)
   assert.match(helpers.validatePhotoInput({ imageBase64: 'not%base64', mimeType: 'image/png' }).error, /base64/)
 
-  const dataUrl = `data:image/webp;base64,${Buffer.from('webp').toString('base64')}`
+  const webp = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), Buffer.from('payload')])
+  const dataUrl = `data:image/webp;base64,${webp.toString('base64')}`
   assert.equal(helpers.validatePhotoInput({ imageBase64: dataUrl }).mimeType, 'image/webp')
   assert.match(helpers.validatePhotoInput({ imageBase64: dataUrl, mimeType: 'image/png' }).error, /does not match/)
+  assert.match(helpers.validatePhotoInput({ imageBase64: Buffer.from('not an image').toString('base64'), mimeType: 'image/jpeg' }).error, /unrecognized/)
+})
+
+test('OpenAI Responses request keeps the key server-side and uses strict structured vision input', () => {
+  const previousKey = process.env.OPENAI_API_KEY
+  const previousModel = process.env.OPENAI_MODEL
+  process.env.OPENAI_API_KEY = 'server-only-test-key'
+  process.env.OPENAI_MODEL = 'gpt-test'
+  try {
+    const request = helpers.buildOpenAIResponsesBody({
+      imageBase64: '/9j/',
+      mimeType: 'image/jpeg',
+      openid: 'user-123',
+    })
+    assert.equal(request.model, 'gpt-test')
+    assert.equal(request.store, false)
+    assert.equal(request.text.format.type, 'json_schema')
+    assert.equal(request.text.format.strict, true)
+    assert.match(request.safety_identifier, /^wechat_[a-f0-9]{32}$/)
+    assert.equal(request.input[1].content[1].type, 'input_image')
+    assert.match(request.input[1].content[1].image_url, /^data:image\/jpeg;base64,/)
+    assert.doesNotMatch(JSON.stringify(request), /server-only-test-key/)
+  } finally {
+    if (previousKey == null) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previousKey
+    if (previousModel == null) delete process.env.OPENAI_MODEL
+    else process.env.OPENAI_MODEL = previousModel
+  }
+})
+
+test('OpenAI Responses parser accepts output_text and rejects refusals or malformed JSON', () => {
+  const parsed = helpers.parseOpenAIResponsesOutput({
+    status: 'completed',
+    output: [{ type: 'message', content: [{
+      type: 'output_text',
+      text: '{"items":[{"foodName":"米饭","quantityG":100,"kcal":116,"carbG":25.9,"proteinG":2.6,"fatG":0.3}],"message":"请确认份量"}',
+    }] }],
+  })
+  assert.equal(parsed.items[0].foodName, '米饭')
+  assert.throws(() => helpers.parseOpenAIResponsesOutput({
+    status: 'completed',
+    output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }],
+  }), /ai_refused/)
+  assert.throws(() => helpers.parseOpenAIResponsesOutput({
+    status: 'completed',
+    output: [{ type: 'message', content: [{ type: 'output_text', text: 'not-json' }] }],
+  }), /ai_invalid_json/)
 })
 
 test('photo quota reservation logic reserves free quota before points and resets daily', () => {
@@ -311,4 +363,13 @@ test('trend lookback is explicitly capped at 90 days', () => {
   assert.equal(helpers.normalizeTrendDays(90), 90)
   assert.equal(helpers.normalizeTrendDays(365), 90)
   assert.equal(helpers.normalizeTrendDays(0), 30)
+})
+
+test('feedback requires useful bounded content', () => {
+  assert.match(helpers.normalizeFeedback({ content: '短' }).error, /5-1000/)
+  assert.match(helpers.normalizeFeedback({ content: 'x'.repeat(1001) }).error, /5-1000/)
+  assert.deepEqual(helpers.normalizeFeedback({ content: '  希望趋势图支持自定义区间  ' }), {
+    content: '希望趋势图支持自定义区间',
+    category: 'general',
+  })
 })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, Input, Picker } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { createPlan, ensureAuthReady } from '../../api/client'
@@ -23,6 +23,30 @@ const WEEKLY_LOSS_OPTIONS = [
 
 type PaceMode = 'weekly' | 'date'
 
+interface OnboardingDraft {
+  step?: number
+  sex?: 'male' | 'female'
+  age?: string
+  height?: string
+  currentWeight?: string
+  targetWeight?: string
+  paceMode?: PaceMode
+  weeklyLoss?: string
+  targetDate?: string
+  activity?: number
+}
+
+const ONBOARDING_DRAFT_KEY = 'onboardingDraft'
+
+function readDraft(): OnboardingDraft {
+  try {
+    const value = Taro.getStorageSync(ONBOARDING_DRAFT_KEY)
+    return value && typeof value === 'object' ? value as OnboardingDraft : {}
+  } catch {
+    return {}
+  }
+}
+
 function toDateString(date: Date) {
   const year = date.getFullYear()
   const month = `${date.getMonth() + 1}`.padStart(2, '0')
@@ -36,8 +60,10 @@ function dateAfterWeeks(weeks: number) {
   return toDateString(date)
 }
 
-function todayString() {
-  return toDateString(new Date())
+function tomorrowString() {
+  const date = new Date()
+  date.setDate(date.getDate() + 1)
+  return toDateString(date)
 }
 
 function planErrorMessage(error?: string) {
@@ -49,18 +75,27 @@ function planErrorMessage(error?: string) {
 }
 
 export default function OnboardingPage() {
-  const [step, setStep] = useState(0)
-  const [sex, setSex] = useState<'male' | 'female'>('female')
-  const [age, setAge] = useState('')
-  const [height, setHeight] = useState('')
-  const [currentWeight, setCurrentWeight] = useState('')
-  const [targetWeight, setTargetWeight] = useState('')
-  const [paceMode, setPaceMode] = useState<PaceMode>('weekly')
-  const [weeklyLoss, setWeeklyLoss] = useState('0.5')
-  const [targetDate, setTargetDate] = useState(dateAfterWeeks(12))
-  const [activity, setActivity] = useState(1.4)
+  const [draft] = useState(readDraft)
+  const [step, setStep] = useState(Math.max(0, Math.min(TOTAL_STEPS - 1, Number(draft.step) || 0)))
+  const [sex, setSex] = useState<'male' | 'female'>(draft.sex === 'male' ? 'male' : 'female')
+  const [age, setAge] = useState(draft.age || '')
+  const [height, setHeight] = useState(draft.height || '')
+  const [currentWeight, setCurrentWeight] = useState(draft.currentWeight || '')
+  const [targetWeight, setTargetWeight] = useState(draft.targetWeight || '')
+  const [paceMode, setPaceMode] = useState<PaceMode>(draft.paceMode === 'date' ? 'date' : 'weekly')
+  const [weeklyLoss, setWeeklyLoss] = useState(draft.weeklyLoss || '0.5')
+  const [targetDate, setTargetDate] = useState(draft.targetDate || dateAfterWeeks(12))
+  const [activity, setActivity] = useState(ACTIVITY_LEVELS.some((item) => item.value === draft.activity) ? draft.activity as number : 1.45)
   const [submitting, setSubmitting] = useState(false)
+  const [completed, setCompleted] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (completed) return
+    Taro.setStorageSync(ONBOARDING_DRAFT_KEY, {
+      step, sex, age, height, currentWeight, targetWeight, paceMode, weeklyLoss, targetDate, activity,
+    })
+  }, [activity, age, completed, currentWeight, height, paceMode, sex, step, targetDate, targetWeight, weeklyLoss])
 
   const updateField = (setter: (value: string) => void, value: string) => {
     setter(value)
@@ -119,7 +154,7 @@ export default function OnboardingPage() {
   })
 
   const handleNext = async () => {
-    if (submitting) return
+    if (submitting || completed) return
 
     const validationError = validateStep(step)
     if (validationError) {
@@ -209,12 +244,14 @@ export default function OnboardingPage() {
         return
       }
 
+      setCompleted(true)
+      Taro.removeStorageSync(ONBOARDING_DRAFT_KEY)
       Taro.showToast({ title: '计划已创建', icon: 'success', duration: 1000 })
       setTimeout(() => Taro.switchTab({ url: '/pages/today/index' }), 1000)
     } catch {
       setError('网络连接异常，计划尚未创建，请稍后重试')
     } finally {
-      setSubmitting(false)
+      if (!completed) setSubmitting(false)
     }
   }
 
@@ -338,7 +375,7 @@ export default function OnboardingPage() {
             ) : (
               <View className='onboard-date-section'>
                 <Text className='onboard-label'>期望达到目标的日期</Text>
-                <Picker mode='date' start={todayString()} value={targetDate} onChange={event => updateField(setTargetDate, event.detail.value)}>
+                <Picker mode='date' start={tomorrowString()} value={targetDate} onChange={event => updateField(setTargetDate, event.detail.value)}>
                   <View className='onboard-date-picker'>
                     <Text className='onboard-date-value'>{targetDate}</Text>
                     <Text className='onboard-date-action'>选择日期</Text>
@@ -420,8 +457,8 @@ export default function OnboardingPage() {
         <View className='onboard-secondary-btn' onClick={step > 0 ? handleBack : handleExit}>
           <Text>{step > 0 ? '上一步' : '暂时跳过'}</Text>
         </View>
-        <View className={`onboard-primary-btn ${submitting ? 'onboard-primary-btn--disabled' : ''}`} onClick={handleNext}>
-          <Text>{submitting ? '正在创建…' : step === TOTAL_STEPS - 1 ? '创建我的计划' : '继续'}</Text>
+        <View className={`onboard-primary-btn ${submitting || completed ? 'onboard-primary-btn--disabled' : ''}`} onClick={handleNext}>
+          <Text>{completed ? '创建成功' : submitting ? '正在创建…' : step === TOTAL_STEPS - 1 ? '创建我的计划' : '继续'}</Text>
         </View>
       </View>
     </View>
