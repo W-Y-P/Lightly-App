@@ -1375,10 +1375,10 @@ async function getDeficitTrend(payload, openid) {
 }
 
 function getAiConfig() {
-  const baseUrl = (process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '')
-  const apiKey = process.env.OPENAI_API_KEY || process.env.AI_API_KEY || ''
-  const model = process.env.OPENAI_MODEL || process.env.AI_MODEL || 'gpt-5.6-sol'
-  return { baseUrl, apiKey, model, enabled: Boolean(apiKey) }
+  const baseUrl = (process.env.MIMO_BASE_URL || 'https://api.xiaomimimo.com/v1').replace(/\/+$/, '')
+  const apiKey = process.env.MIMO_API_KEY || ''
+  const model = process.env.MIMO_MODEL || 'mimo-v2.5'
+  return { provider: 'mimo', baseUrl, apiKey, model, enabled: Boolean(apiKey) }
 }
 
 const MEAL_ESTIMATE_SCHEMA = Object.freeze({
@@ -1407,10 +1407,6 @@ const MEAL_ESTIMATE_SCHEMA = Object.freeze({
     message: { type: 'string', maxLength: 120 },
   },
 })
-
-function safetyIdentifierFor(openid) {
-  return `wechat_${crypto.createHash('sha256').update(String(openid || 'anonymous')).digest('hex').slice(0, 32)}`
-}
 
 function publicAiError(error) {
   const message = String((error && error.message) || error || '')
@@ -1483,7 +1479,7 @@ function aggregateEstimate(items, confidence) {
   }
 }
 
-function buildOpenAIResponsesBody({ description, imageBase64, mimeType, openid }) {
+function buildMiMoResponsesBody({ description, imageBase64, mimeType }) {
   const config = getAiConfig()
   const userContent = [{
     type: 'input_text',
@@ -1495,16 +1491,13 @@ function buildOpenAIResponsesBody({ description, imageBase64, mimeType, openid }
     userContent.push({
       type: 'input_image',
       image_url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}`,
-      detail: 'auto',
     })
   }
   return {
     model: config.model,
-    store: false,
-    safety_identifier: safetyIdentifierFor(openid),
-    reasoning: { effort: 'low' },
+    instructions: buildMealPrompt(Boolean(imageBase64)),
+    reasoning: { effort: 'none' },
     text: {
-      verbosity: 'low',
       format: {
         type: 'json_schema',
         name: 'meal_estimate',
@@ -1512,15 +1505,13 @@ function buildOpenAIResponsesBody({ description, imageBase64, mimeType, openid }
         schema: MEAL_ESTIMATE_SCHEMA,
       },
     },
-    input: [
-      { role: 'developer', content: [{ type: 'input_text', text: buildMealPrompt(Boolean(imageBase64)) }] },
-      { role: 'user', content: userContent },
-    ],
+    input: [{ role: 'user', content: userContent }],
     max_output_tokens: 1600,
+    stream: false,
   }
 }
 
-function parseOpenAIResponsesOutput(response) {
+function parseMiMoResponsesOutput(response) {
   if (!response || typeof response !== 'object') throw new Error('ai_invalid_response')
   if (response.error) throw new Error('ai_api_error')
   if (response.status === 'incomplete') throw new Error(`ai_incomplete_${(response.incomplete_details && response.incomplete_details.reason) || 'unknown'}`)
@@ -1529,10 +1520,11 @@ function parseOpenAIResponsesOutput(response) {
     ? response.output.flatMap((item) => (item && item.type === 'message' && Array.isArray(item.content)) ? item.content : [])
     : []
   if (contentParts.some((part) => part && part.type === 'refusal')) throw new Error('ai_refused')
-  const text = contentParts
+  const contentText = contentParts
     .filter((part) => part && part.type === 'output_text')
     .map((part) => part.text || '')
     .join('')
+  const text = contentText || String(response.output_text || '')
   if (!text) throw new Error('ai_empty_output')
   try {
     return JSON.parse(text)
@@ -1541,7 +1533,7 @@ function parseOpenAIResponsesOutput(response) {
   }
 }
 
-function callOpenAIResponses(requestBody) {
+function callMiMoResponses(requestBody) {
   const config = getAiConfig()
   if (!config.enabled) {
     return Promise.reject(new Error('ai_not_configured'))
@@ -1563,7 +1555,7 @@ function callOpenAIResponses(requestBody) {
     path: `${url.pathname}${url.search}`,
     port: url.port || (url.protocol === 'https:' ? 443 : 80),
     headers: {
-      Authorization: `Bearer ${config.apiKey}`,
+      'api-key': config.apiKey,
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(body),
     },
@@ -1592,7 +1584,7 @@ function callOpenAIResponses(requestBody) {
           return
         }
         try {
-          resolve(parseOpenAIResponsesOutput(json))
+          resolve(parseMiMoResponsesOutput(json))
         } catch (error) {
           reject(error)
         }
@@ -1621,7 +1613,7 @@ function buildMealPrompt(hasImage) {
 }
 
 function estimateMealTextWithAi(description, openid) {
-  return callOpenAIResponses(buildOpenAIResponsesBody({ description, openid })).then((parsed) => {
+  return callMiMoResponses(buildMiMoResponsesBody({ description, openid })).then((parsed) => {
     const items = normalizeMealItems(parsed.items)
     if (!items.length) throw new Error('ai_empty_items')
     return {
@@ -1633,7 +1625,7 @@ function estimateMealTextWithAi(description, openid) {
 }
 
 function estimateMealPhotoWithAi(imageBase64, mimeType, openid) {
-  return callOpenAIResponses(buildOpenAIResponsesBody({ imageBase64, mimeType, openid })).then((parsed) => {
+  return callMiMoResponses(buildMiMoResponsesBody({ imageBase64, mimeType, openid })).then((parsed) => {
     const items = normalizeMealItems(parsed.items)
     if (!items.length) throw new Error('ai_empty_items')
     return {
@@ -1891,11 +1883,11 @@ async function aiTextEstimate(payload, openid) {
     const data = await estimateMealTextWithAi(desc, openid)
     return {
       code: 0,
-      data: { ...data, provider: 'openai', model: config.model, remainingToday: usage.remaining },
+      data: { ...data, provider: config.provider, model: config.model, remainingToday: usage.remaining },
       message: 'ok',
     }
   } catch (error) {
-    console.error('OpenAI text estimate failed', error && error.message)
+    console.error('MiMo text estimate failed', error && error.message)
     const publicError = publicAiError(error)
     return { code: publicError.code, data: null, message: publicError.message }
   }
@@ -1960,7 +1952,7 @@ async function aiPhotoEstimate(payload, openid) {
       image: { mimeType: photo.mimeType, sizeBytes: photo.sizeBytes },
       mimeType: photo.mimeType,
       imageSizeBytes: photo.sizeBytes,
-      provider: 'openai',
+      provider: config.provider,
       model: config.model,
     }
     const committed = await commitPhotoQuota(usageId, responseData)
@@ -1969,14 +1961,14 @@ async function aiPhotoEstimate(payload, openid) {
     try {
       await rollbackPhotoQuota(user._id, usageId)
     } catch (rollbackError) {
-      console.error('OpenAI photo estimate and quota rollback failed', err && err.message, rollbackError && rollbackError.message)
+      console.error('MiMo photo estimate and quota rollback failed', err && err.message, rollbackError && rollbackError.message)
       return {
         code: 500,
         data: null,
         message: 'ai_quota_rollback_failed',
       }
     }
-    console.error('OpenAI photo estimate failed', err && err.message)
+    console.error('MiMo photo estimate failed', err && err.message)
     const publicError = publicAiError(err)
     return { code: publicError.code, data: null, message: publicError.message }
   }
@@ -2140,7 +2132,7 @@ exports.__test = {
   DAILY_ACTIVITY_BASELINE_MULTIPLIER,
   PHOTO_RESERVATION_TIMEOUT_MS,
   awardDailyStarIfEligible,
-  buildOpenAIResponsesBody,
+  buildMiMoResponsesBody,
   buildDailyPlanSnapshot,
   calcTDEE,
   calculateDailySummaryMetrics,
@@ -2169,7 +2161,7 @@ exports.__test = {
   planPhotoQuotaRollback,
   planPhotoQuotaReservation,
   planPhotoQuotaReservationWithRecovery,
-  parseOpenAIResponsesOutput,
+  parseMiMoResponsesOutput,
   publicAiError,
   resolveExistingIdempotentDocument,
   resolvePlanEnergyForDate,

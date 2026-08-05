@@ -674,7 +674,7 @@ export default function RecordPage() {
       if (!Taro.getStorageSync('aiPhotoPrivacyConsent')) {
         const consent = await Taro.showModal({
           title: '照片识别说明',
-          content: '所选照片会发送给第三方 AI 服务 OpenAI 进行本次识别。本服务不保存原图，识别结果会先由你确认，再写入饮食记录。',
+          content: '所选照片会发送给第三方 AI 服务小米 MiMo API 进行本次识别。本服务不保存原图，识别结果会先由你确认，再写入饮食记录。',
           cancelText: '暂不使用',
           confirmText: '同意并继续',
         })

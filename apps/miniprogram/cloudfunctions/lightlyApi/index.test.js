@@ -128,35 +128,34 @@ test('photo validation decodes actual bytes and only accepts jpeg, png, or webp'
   assert.match(helpers.validatePhotoInput({ imageBase64: Buffer.from('not an image').toString('base64'), mimeType: 'image/jpeg' }).error, /unrecognized/)
 })
 
-test('OpenAI Responses request keeps the key server-side and uses strict structured vision input', () => {
-  const previousKey = process.env.OPENAI_API_KEY
-  const previousModel = process.env.OPENAI_MODEL
-  process.env.OPENAI_API_KEY = 'server-only-test-key'
-  process.env.OPENAI_MODEL = 'gpt-test'
+test('MiMo Responses request keeps the key server-side and uses structured multimodal input', () => {
+  const previousKey = process.env.MIMO_API_KEY
+  const previousModel = process.env.MIMO_MODEL
+  process.env.MIMO_API_KEY = 'server-only-test-key'
+  process.env.MIMO_MODEL = 'mimo-test'
   try {
-    const request = helpers.buildOpenAIResponsesBody({
+    const request = helpers.buildMiMoResponsesBody({
       imageBase64: '/9j/',
       mimeType: 'image/jpeg',
-      openid: 'user-123',
     })
-    assert.equal(request.model, 'gpt-test')
-    assert.equal(request.store, false)
+    assert.equal(request.model, 'mimo-test')
+    assert.equal(request.reasoning.effort, 'none')
     assert.equal(request.text.format.type, 'json_schema')
     assert.equal(request.text.format.strict, true)
-    assert.match(request.safety_identifier, /^wechat_[a-f0-9]{32}$/)
-    assert.equal(request.input[1].content[1].type, 'input_image')
-    assert.match(request.input[1].content[1].image_url, /^data:image\/jpeg;base64,/)
+    assert.equal(request.stream, false)
+    assert.equal(request.input[0].content[1].type, 'input_image')
+    assert.match(request.input[0].content[1].image_url, /^data:image\/jpeg;base64,/)
     assert.doesNotMatch(JSON.stringify(request), /server-only-test-key/)
   } finally {
-    if (previousKey == null) delete process.env.OPENAI_API_KEY
-    else process.env.OPENAI_API_KEY = previousKey
-    if (previousModel == null) delete process.env.OPENAI_MODEL
-    else process.env.OPENAI_MODEL = previousModel
+    if (previousKey == null) delete process.env.MIMO_API_KEY
+    else process.env.MIMO_API_KEY = previousKey
+    if (previousModel == null) delete process.env.MIMO_MODEL
+    else process.env.MIMO_MODEL = previousModel
   }
 })
 
-test('OpenAI Responses parser accepts output_text and rejects refusals or malformed JSON', () => {
-  const parsed = helpers.parseOpenAIResponsesOutput({
+test('MiMo Responses parser accepts output_text and rejects refusals or malformed JSON', () => {
+  const parsed = helpers.parseMiMoResponsesOutput({
     status: 'completed',
     output: [{ type: 'message', content: [{
       type: 'output_text',
@@ -164,11 +163,11 @@ test('OpenAI Responses parser accepts output_text and rejects refusals or malfor
     }] }],
   })
   assert.equal(parsed.items[0].foodName, '米饭')
-  assert.throws(() => helpers.parseOpenAIResponsesOutput({
+  assert.throws(() => helpers.parseMiMoResponsesOutput({
     status: 'completed',
     output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }],
   }), /ai_refused/)
-  assert.throws(() => helpers.parseOpenAIResponsesOutput({
+  assert.throws(() => helpers.parseMiMoResponsesOutput({
     status: 'completed',
     output: [{ type: 'message', content: [{ type: 'output_text', text: 'not-json' }] }],
   }), /ai_invalid_json/)

@@ -251,7 +251,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       if (!Taro.getStorageSync('aiPhotoPrivacyConsent')) {
         const consent = await Taro.showModal({
           title: '照片识别说明',
-          content: '照片会发送给 OpenAI 完成本次食物识别，本服务不保存原图。识别结果会先交给你确认，再写入饮食记录。',
+          content: '照片会发送给小米 MiMo API 完成本次食物识别，本服务不保存原图。识别结果会先交给你确认，再写入饮食记录。',
           confirmText: '同意并继续',
           cancelText: '暂不使用',
         })

@@ -75,7 +75,7 @@ export default function ProfilePage() {
   const showPrivacy = () => {
     const fallback = () => Taro.showModal({
       title: '隐私说明',
-      content: '你的身体数据和饮食记录仅用于生成个人计划与趋势分析。使用拍照识别时，所选照片会发送给第三方 AI 服务 OpenAI 处理，本服务不保存原图。删除账号后，相关数据将永久清除。',
+      content: '你的身体数据和饮食记录仅用于生成个人计划与趋势分析。使用拍照识别时，所选照片会发送给第三方 AI 服务小米 MiMo API 处理，本服务不保存原图。删除账号后，相关数据将永久清除。',
       showCancel: false,
       confirmText: '知道了',
     })

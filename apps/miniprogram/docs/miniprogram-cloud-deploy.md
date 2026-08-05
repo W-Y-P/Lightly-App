@@ -75,19 +75,19 @@ npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b
 
 ## 4. 配置大模型环境变量
 
-云函数通过 OpenAI Responses API 进行文字和图片识别。密钥必须只放在微信云函数环境变量中，不要写入源码、`project.config.json`、构建产物或聊天记录。
+云函数通过小米 MiMo 的 OpenAI-compatible Responses API 进行文字和图片识别，模型固定默认使用多模态 `mimo-v2.5`。密钥必须只放在微信云函数环境变量中，不要写入源码、`project.config.json`、构建产物或聊天记录。
 
-ChatGPT Pro 与 OpenAI API 是两套独立计费。Pro 会员仍需登录 [OpenAI API Platform](https://platform.openai.com/)，在 API Billing 中开通 API 计费，再到 [API Keys](https://platform.openai.com/api-keys) 创建项目密钥。不要把完整密钥发给 Codex；请直接在腾讯云控制台中设置它。
+在 [小米 MiMo 控制台](https://platform.xiaomimimo.com/) 创建 API Key。不要把完整密钥发给 Codex；请直接在腾讯云控制台中设置。任何曾粘贴到聊天、终端或代码中的密钥都应立即吊销并重新创建。
 
 腾讯云配置路径：云开发控制台 -> 云函数 -> `lightlyApi` -> 函数配置 -> 环境变量。新增变量后保存配置并重新部署函数。
 
 在 `lightlyApi` 云函数配置中添加：
 
-- `OPENAI_API_KEY`: OpenAI API key，必填，只配置在云函数环境变量中
-- `OPENAI_MODEL`: 可选，默认 `gpt-5.6-sol`
-- `OPENAI_BASE_URL`: 可选，默认 `https://api.openai.com/v1`；生产环境只接受 HTTPS
+- `MIMO_API_KEY`: 小米 MiMo API key，必填，只配置在云函数环境变量中
+- `MIMO_MODEL`: 可选，默认 `mimo-v2.5`
+- `MIMO_BASE_URL`: 可选，默认 `https://api.xiaomimimo.com/v1`；生产环境只接受 HTTPS
 
-如果没有配置 `OPENAI_API_KEY`，云函数会明确返回 `ai_not_configured`，不会生成虚假估算，也不会消耗免费次数或积分。拍照识别不会保存原图，只在本次云函数调用内发送给 OpenAI 处理；成功识别会消耗当次额度，用户确认后才保存结构化餐食数据。
+如果没有配置 `MIMO_API_KEY`，云函数会明确返回 `ai_not_configured`，不会生成虚假估算，也不会消耗免费次数或积分。拍照识别不会保存原图，只在本次云函数调用内发送给小米 MiMo API 处理；成功识别会消耗当次额度，用户确认后才保存结构化餐食数据。
 
 ## 5. 创建云数据库集合
 
@@ -196,7 +196,7 @@ cd apps/miniprogram
 - 开通云开发
 - 创建上述 10 个集合
 - 上传部署 `lightlyApi` 云函数
-- 在云函数环境变量中配置 `OPENAI_API_KEY`，可按需覆盖 `OPENAI_MODEL`
+- 在云函数环境变量中配置 `MIMO_API_KEY`，可按需覆盖 `MIMO_MODEL`
 - 若使用固定环境，填写 `cloudEnvId`
 - 若使用当前动态环境，设置 `useDynamicCloudEnv = true`
 
