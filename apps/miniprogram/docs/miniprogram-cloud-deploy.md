@@ -77,6 +77,10 @@ npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b
 
 云函数通过 OpenAI Responses API 进行文字和图片识别。密钥必须只放在微信云函数环境变量中，不要写入源码、`project.config.json`、构建产物或聊天记录。
 
+ChatGPT Pro 与 OpenAI API 是两套独立计费。Pro 会员仍需登录 [OpenAI API Platform](https://platform.openai.com/)，在 API Billing 中开通 API 计费，再到 [API Keys](https://platform.openai.com/api-keys) 创建项目密钥。不要把完整密钥发给 Codex；请直接在腾讯云控制台中设置它。
+
+腾讯云配置路径：云开发控制台 -> 云函数 -> `lightlyApi` -> 函数配置 -> 环境变量。新增变量后保存配置并重新部署函数。
+
 在 `lightlyApi` 云函数配置中添加：
 
 - `OPENAI_API_KEY`: OpenAI API key，必填，只配置在云函数环境变量中

@@ -1,9 +1,13 @@
 import { View, Text } from '@tarojs/components'
 import { useTodayData } from '../../../store/todayDataStore'
-import { MealSlot, openRecord } from '../../../utils/recordIntent'
+import type { MealSlot } from '../../../utils/recordIntent'
 import './MealQuickCards.scss'
 
-export default function MealQuickCards() {
+interface MealQuickCardsProps {
+  onSelect: (slot: MealSlot) => void
+}
+
+export default function MealQuickCards({ onSelect }: MealQuickCardsProps) {
   const { meals } = useTodayData()
 
   /** meal id → record slot mapping; 'snack' maps to 'other' per spec */
@@ -17,7 +21,7 @@ export default function MealQuickCards() {
 
   const handleMeal = (meal: { id: string; name: string }) => {
     const slot = SLOT_MAP[meal.id] ?? 'other'
-    openRecord({ type: 'meal', slot })
+    onSelect(slot)
   }
 
   return (

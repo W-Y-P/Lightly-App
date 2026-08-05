@@ -3,7 +3,11 @@ import { useTodayData } from '../../../store/todayDataStore'
 import { openRecord } from '../../../utils/recordIntent'
 import './HeaderSection.scss'
 
-export default function HeaderSection() {
+interface HeaderSectionProps {
+  onPhoto: () => void
+}
+
+export default function HeaderSection({ onPhoto }: HeaderSectionProps) {
   const { date } = useTodayData()
 
   const handleCalendar = () => {
@@ -19,11 +23,11 @@ export default function HeaderSection() {
           <Text className='header-chevron'>▾</Text>
         </View>
       </View>
-      <View className='header-calendar-btn' onClick={handleCalendar}>
-        <View className='header-calendar-icon'>
-          <View className='header-calendar-line' />
+      <View className='header-calendar-btn' onClick={onPhoto}>
+        <View className='header-photo-icon'>
+          <View className='header-photo-lens' />
         </View>
-        <Text className='header-calendar-text'>打卡日历</Text>
+        <Text className='header-calendar-text'>AI 拍照</Text>
       </View>
     </View>
   )

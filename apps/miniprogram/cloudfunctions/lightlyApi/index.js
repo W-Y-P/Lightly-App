@@ -903,11 +903,6 @@ function normalizeMeal(payload, existing) {
     proteinG: Math.round(items.reduce((sum, item) => sum + item.proteinG, 0) * 10) / 10,
     fatG: Math.round(items.reduce((sum, item) => sum + item.fatG, 0) * 10) / 10,
   }
-  const mealSlot = hasOwn(payload, 'mealSlot') ? payload.mealSlot : existing && existing.mealSlot
-  if (status === 'recorded' && totals.carbG + totals.proteinG + totals.fatG <= 0
-    && !(mealSlot === 'drink' && totals.totalKcal === 0)) {
-    return { error: 'recorded meal macros must not all be zero' }
-  }
   return { status, items, ...totals }
 }
 
@@ -2169,6 +2164,7 @@ exports.__test = {
   isValidMealType,
   normalizeClientRequestId,
   normalizeFeedback,
+  normalizeMeal,
   normalizeTrendDays,
   planPhotoQuotaRollback,
   planPhotoQuotaReservation,

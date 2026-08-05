@@ -1,8 +1,8 @@
-# Mimo Task: TodayScreen 高保真首页
+# Codex Task: TodayScreen 高保真首页
 
 ## 边界
 
-本项目代码开发由 Mimo 完成。Codex 只负责架构设计、任务拆解、代码审查、验收和风险提示。
+本项目的代码开发、架构设计、审查和验收统一由 Codex 完成。
 
 ## 背景说明
 
@@ -139,7 +139,7 @@ src/screens/today/components/BottomTabBar.tsx
 - 拍照识别入口展示每日免费次数和积分余额（mock 数据）。
 - 可直接运行。
 
-## Mimo 完成后请提供
+## Codex 完成后请提供
 
 - 改动文件列表
 - 运行命令

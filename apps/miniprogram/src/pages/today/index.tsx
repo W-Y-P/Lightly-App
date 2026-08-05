@@ -24,6 +24,9 @@ import MacroSummaryCard from './components/MacroSummaryCard'
 import MealTimelineCard from './components/MealTimelineCard'
 import QuickActionCards from './components/QuickActionCards'
 import DailyAdviceCard from './components/DailyAdviceCard'
+import TodayRecordOverlay from './components/TodayRecordOverlay'
+import type { TodayRecordAction } from './components/TodayRecordOverlay'
+import type { MealSlot } from '../../utils/recordIntent'
 import './index.scss'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
@@ -57,7 +60,7 @@ function formatCreatedAt(createdAt?: string): string {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-function PartialDailyMetrics() {
+function PartialDailyMetrics({ onIntake }: { onIntake: () => void }) {
   const d = useTodayData()
   const metrics = [
     { label: '已摄入', value: `${d.consumed}`, unit: 'kcal', tone: 'brand' },
@@ -76,7 +79,11 @@ function PartialDailyMetrics() {
       </View>
       <View className='metric-row'>
         {metrics.map((metric) => (
-          <View key={metric.label} className={`metric-item metric-item--${metric.tone}`}>
+          <View
+            key={metric.label}
+            className={`metric-item metric-item--${metric.tone} ${metric.label === '已摄入' ? 'metric-item--pressable' : ''}`}
+            onClick={metric.label === '已摄入' ? onIntake : undefined}
+          >
             <Text className='metric-label'>{metric.label}</Text>
             <Text className='metric-value'>{metric.value}</Text>
             <Text className='metric-unit'>{metric.unit}</Text>
@@ -119,6 +126,7 @@ export default function TodayPage() {
   const [pageState, setPageState] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading')
   const [partialFailures, setPartialFailures] = useState<string[]>([])
   const [hasCompleteMeals, setHasCompleteMeals] = useState(false)
+  const [recordAction, setRecordAction] = useState<TodayRecordAction | null>(null)
   const loadSequence = useRef(0)
 
   useDidShow(() => {
@@ -127,7 +135,14 @@ export default function TodayPage() {
 
   useDidHide(() => {
     loadSequence.current += 1
+    setRecordAction(null)
   })
+
+  const openMeal = (slot: MealSlot) => setRecordAction({ type: 'meal', slot })
+  const openMealPicker = () => setRecordAction({ type: 'mealPicker' })
+  const openExercise = () => setRecordAction({ type: 'exercise' })
+  const openWeight = () => setRecordAction({ type: 'weight' })
+  const openPhoto = () => setRecordAction({ type: 'photo' })
 
   async function loadFromApi() {
     const sequence = ++loadSequence.current
@@ -302,6 +317,12 @@ export default function TodayPage() {
         patch.exerciseCaloriesTotal = exercisesRes.data.totalKcal
         patch.exerciseDuration = Math.round(exercises.reduce((sum, item) => sum + item.durationMin, 0))
         patch.exerciseType = [...new Set(exercises.map((item) => item.exerciseType))].slice(0, 2).join('、') || '尚未记录'
+        patch.exerciseEntries = exercises.map((item) => ({
+          id: item.id,
+          exerciseType: item.exerciseType,
+          durationMin: item.durationMin,
+          kcal: item.confirmedKcal,
+        }))
       } else {
         failures.push('运动记录')
       }
@@ -402,29 +423,34 @@ export default function TodayPage() {
             </View>
           </View>
         )}
-        <HeaderSection />
+        <HeaderSection onPhoto={openPhoto} />
         <CalorieBalanceCard />
-        {hasCompleteMeals ? <MetricRow /> : <PartialDailyMetrics />}
-        <MealQuickCards />
+        {hasCompleteMeals ? <MetricRow onIntake={openMealPicker} /> : <PartialDailyMetrics onIntake={openMealPicker} />}
+        <MealQuickCards onSelect={openMeal} />
 
         <View className='today-exercise-row'>
           <View className='today-exercise-left'>
-            <ExerciseCard />
+            <ExerciseCard onRecord={openExercise} />
           </View>
           <View className='today-right-stack'>
             {hasCompleteMeals ? <StarRewardCard /> : <PendingStarReward />}
-            <WeightTrendCard />
+            <WeightTrendCard onCheckin={openWeight} />
           </View>
         </View>
 
         <TipCard />
         <MacroSummaryCard />
         <MealTimelineCard />
-        <QuickActionCards />
+        <QuickActionCards onWeight={openWeight} onPhoto={openPhoto} />
         <DailyAdviceCard />
 
         <View className='today-bottom-spacer' />
       </View>
+      <TodayRecordOverlay
+        action={recordAction}
+        onClose={() => setRecordAction(null)}
+        onSaved={loadFromApi}
+      />
     </View>
   )
 }

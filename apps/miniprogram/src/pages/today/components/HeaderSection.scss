@@ -46,21 +46,33 @@
 
 .header-calendar-btn:active { opacity: 0.7; }
 
-.header-calendar-icon {
+.header-photo-icon {
   position: relative;
-  width: 28rpx;
-  height: 28rpx;
+  width: 31rpx;
+  height: 25rpx;
   border: 3rpx solid var(--brand);
-  border-radius: 6rpx;
+  border-radius: 7rpx;
 }
 
-.header-calendar-line {
+.header-photo-icon::before {
   position: absolute;
-  top: 7rpx;
-  left: 3rpx;
-  right: 3rpx;
-  height: 3rpx;
+  top: -8rpx;
+  left: 7rpx;
+  width: 13rpx;
+  height: 7rpx;
+  content: '';
   background: var(--brand);
+  border-radius: 4rpx 4rpx 0 0;
+}
+
+.header-photo-lens {
+  position: absolute;
+  top: 5rpx;
+  left: 8rpx;
+  width: 9rpx;
+  height: 9rpx;
+  border: 3rpx solid var(--brand);
+  border-radius: 50%;
 }
 
 .header-calendar-text {

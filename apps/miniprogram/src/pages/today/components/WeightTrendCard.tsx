@@ -1,10 +1,13 @@
 import { View, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useTodayData } from '../../../store/todayDataStore'
-import { openRecord } from '../../../utils/recordIntent'
 import './WeightTrendCard.scss'
 
-export default function WeightTrendCard() {
+interface WeightTrendCardProps {
+  onCheckin: () => void
+}
+
+export default function WeightTrendCard({ onCheckin }: WeightTrendCardProps) {
   const { currentWeight, weightUnit, weightTrend } = useTodayData()
   const minW = weightTrend.length > 0 ? Math.min(...weightTrend.map(p => p.weight)) : 0
   const maxW = weightTrend.length > 0 ? Math.max(...weightTrend.map(p => p.weight)) : 0
@@ -14,7 +17,7 @@ export default function WeightTrendCard() {
 
   const handleCheckin = (event: { stopPropagation?: () => void }) => {
     event.stopPropagation?.()
-    openRecord({ type: 'weight' })
+    onCheckin()
   }
 
   // Build simple bar chart

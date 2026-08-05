@@ -1,17 +1,16 @@
 import { View, Text } from '@tarojs/components'
 import { useTodayData } from '../../../store/todayDataStore'
-import { openRecord } from '../../../utils/recordIntent'
 import './ExerciseCard.scss'
 
-export default function ExerciseCard() {
+interface ExerciseCardProps {
+  onRecord: () => void
+}
+
+export default function ExerciseCard({ onRecord }: ExerciseCardProps) {
   const d = useTodayData()
 
-  const handleExercise = () => {
-    openRecord({ type: 'exercise' })
-  }
-
   return (
-    <View className='exercise-card' onClick={handleExercise}>
+    <View className='exercise-card' onClick={onRecord}>
       <View className='exercise-header'>
         <View className='exercise-icon-circle'>
           <View className='exercise-icon-line' />
@@ -19,21 +18,20 @@ export default function ExerciseCard() {
         <Text className='exercise-title'>运动记录</Text>
         <Text className='exercise-link'>记录 ›</Text>
       </View>
-      <View className='exercise-stats'>
-        <View className='exercise-stat'>
-          <Text className='exercise-stat-value'>{d.exerciseCaloriesTotal}</Text>
-          <Text className='exercise-stat-unit'>kcal</Text>
-        </View>
-        <View className='exercise-divider' />
-        <View className='exercise-stat'>
-          <Text className='exercise-stat-value'>{d.exerciseDuration}</Text>
-          <Text className='exercise-stat-unit'>分钟</Text>
-        </View>
-        <View className='exercise-divider' />
-        <View className='exercise-stat'>
-          <Text className='exercise-stat-value'>{d.exerciseType}</Text>
-          <Text className='exercise-stat-unit'>类型</Text>
-        </View>
+      <View className='exercise-summary'>
+        <Text className='exercise-summary-main'>{d.exerciseCaloriesTotal} kcal</Text>
+        <Text className='exercise-summary-sub'>共 {d.exerciseDuration} 分钟</Text>
+      </View>
+      <View className='exercise-entry-list'>
+        {d.exerciseEntries.length === 0 ? (
+          <Text className='exercise-entry-empty'>还没有运动记录，点这里添加</Text>
+        ) : d.exerciseEntries.map((entry) => (
+          <View className='exercise-entry' key={entry.id}>
+            <Text className='exercise-entry-name'>{entry.exerciseType}</Text>
+            <Text className='exercise-entry-value'>{entry.durationMin} 分钟</Text>
+            <Text className='exercise-entry-value exercise-entry-kcal'>{entry.kcal} kcal</Text>
+          </View>
+        ))}
       </View>
       <View className='exercise-status'>
         <View className='exercise-status-dot' />

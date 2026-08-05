@@ -2,7 +2,11 @@ import { View, Text } from '@tarojs/components'
 import { useTodayData } from '../../../store/todayDataStore'
 import './MetricRow.scss'
 
-export default function MetricRow() {
+interface MetricRowProps {
+  onIntake: () => void
+}
+
+export default function MetricRow({ onIntake }: MetricRowProps) {
   const d = useTodayData()
   const items = [
     { label: '已摄入', value: `${d.consumed}`, unit: 'kcal', tone: 'brand' },
@@ -15,7 +19,11 @@ export default function MetricRow() {
   return (
     <View className='metric-row'>
       {items.map((item) => (
-        <View key={item.label} className={`metric-item metric-item--${item.tone}`}>
+        <View
+          key={item.label}
+          className={`metric-item metric-item--${item.tone} ${item.label === '已摄入' ? 'metric-item--pressable' : ''}`}
+          onClick={item.label === '已摄入' ? onIntake : undefined}
+        >
           <Text className='metric-label'>{item.label}</Text>
           <Text className='metric-value'>{item.value}</Text>
           <Text className='metric-unit'>{item.unit}</Text>

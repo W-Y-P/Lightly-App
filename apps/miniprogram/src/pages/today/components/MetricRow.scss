@@ -54,3 +54,4 @@
 .metric-item--brand .metric-value { color: var(--brand); }
 .metric-item--blue .metric-value { color: var(--blue); }
 .metric-item--amber .metric-value { color: var(--amber); }
+.metric-item--pressable:active { background: var(--brand-soft); border-radius: 10rpx; }

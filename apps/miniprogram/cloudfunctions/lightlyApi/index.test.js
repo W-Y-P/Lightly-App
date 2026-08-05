@@ -57,6 +57,20 @@ test('only recorded and fasting meals with valid meal types count as complete', 
   assert.equal(helpers.isValidMealType('brunch'), false)
 })
 
+test('recorded meals accept omitted macro estimates while retaining editable kcal', () => {
+  const normalized = helpers.normalizeMeal({
+    mealSlot: 'breakfast',
+    status: 'recorded',
+    items: [{ foodName: '手工包子', quantityG: 80, kcal: 190 }],
+  })
+
+  assert.equal(normalized.error, undefined)
+  assert.equal(normalized.totalKcal, 190)
+  assert.equal(normalized.carbG, 0)
+  assert.equal(normalized.proteinG, 0)
+  assert.equal(normalized.fatG, 0)
+})
+
 test('idempotency keys are stable per resource and user while old requests remain keyless', () => {
   const first = helpers.idempotentDocumentId('meal', 'user-a', 'request-123')
   assert.equal(first, helpers.idempotentDocumentId('meal', 'user-a', ' request-123 '))

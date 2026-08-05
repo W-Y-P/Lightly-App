@@ -1,54 +1,16 @@
 import { View, Text } from '@tarojs/components'
-import Taro from '@tarojs/taro'
-import { useTodayData } from '../../../store/todayDataStore'
-import { openRecord } from '../../../utils/recordIntent'
 import './QuickActionCards.scss'
 
-export default function QuickActionCards() {
-  const { entitlement } = useTodayData()
+interface QuickActionCardsProps {
+  onWeight: () => void
+  onPhoto: () => void
+}
 
-  const handleWeight = () => {
-    openRecord({ type: 'weight' })
-  }
-
-  const handlePhoto = () => {
-    // If entitlement data is not loaded yet, let the record page handle quota
-    if (!entitlement) {
-      openRecord({ type: 'meal', slot: 'other', mode: 'photo' })
-      return
-    }
-
-    const { freeRemaining, pointBalance } = entitlement
-
-    if (freeRemaining > 0) {
-      openRecord({ type: 'meal', slot: 'other', mode: 'photo' })
-    } else if (pointBalance > 0) {
-      // No free quota but has points → gentle prompt, then navigate on confirm
-      Taro.showModal({
-        title: 'AI 拍照识别',
-        content: `今日免费识别已用完，可通过达标积分兑换额外次数。（当前积分：${pointBalance}）`,
-        showCancel: true,
-        confirmText: '使用积分',
-        cancelText: '取消',
-      }).then((res) => {
-        if (res.confirm) {
-          openRecord({ type: 'meal', slot: 'other', mode: 'photo', usePoint: true })
-        }
-      })
-    } else {
-      // No free quota and no points
-      Taro.showModal({
-        title: 'AI 拍照识别',
-        content: '今日免费识别已用完，可通过达标积分兑换额外次数。',
-        showCancel: false,
-        confirmText: '知道了',
-      })
-    }
-  }
+export default function QuickActionCards({ onWeight, onPhoto }: QuickActionCardsProps) {
 
   return (
     <View className='action-cards'>
-      <View className='action-card' onClick={handleWeight}>
+      <View className='action-card' onClick={onWeight}>
         <View className='action-icon-circle action-icon--weight'>
           <Text className='action-icon'>kg</Text>
         </View>
@@ -58,7 +20,7 @@ export default function QuickActionCards() {
           <Text className='action-btn-text'>去打卡</Text>
         </View>
       </View>
-      <View className='action-card' onClick={handlePhoto}>
+      <View className='action-card' onClick={onPhoto}>
         <View className='action-icon-circle action-icon--photo'>
           <View className='action-camera-lens' />
         </View>

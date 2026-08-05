@@ -14,6 +14,7 @@ type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; data?: T
 
 interface BackendRequestOptions {
   timeoutMs?: number
+  retryCloud?: boolean
 }
 
 interface ClientRequestBody {
@@ -195,9 +196,14 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, action: string):
   })
 }
 
-function cloudRequest<T>(action: string, payload?: unknown, timeoutMs = CLOUD_REQUEST_TIMEOUT_MS): Promise<ApiResult<T>> {
+function cloudRequest<T>(
+  action: string,
+  payload?: unknown,
+  timeoutMs = CLOUD_REQUEST_TIMEOUT_MS,
+  retryCloud = true,
+): Promise<ApiResult<T>> {
   const request = callCloudFunctionOnce(action, payload).catch(async (err: any) => {
-    if (!isRetriableCloudError(err)) throw err
+    if (!retryCloud || !isRetriableCloudError(err)) throw err
     await sleep(RETRY_DELAY_MS)
     return callCloudFunctionOnce(action, payload)
   })
@@ -267,7 +273,7 @@ async function backendRequest<T>(
   const timeoutMs = options.timeoutMs ?? CLOUD_REQUEST_TIMEOUT_MS
   let cloudFailure: ApiResult<T> | null = null
   if (isCloudAvailable()) {
-    const cloudRes = await cloudRequest<T>(action, payload, timeoutMs)
+    const cloudRes = await cloudRequest<T>(action, payload, timeoutMs, options.retryCloud !== false)
     if (cloudRes.ok) {
       return cloudRes
     }
@@ -601,7 +607,10 @@ export async function aiTextEstimate(description: string, clientRequestId?: stri
     /** 食品列表（新） */
     items: MealItemInput[]
     message: string
-  }>('aiTextEstimate', payload, 'POST', '/ai/meal-text-estimate', payload, { timeoutMs: AI_REQUEST_TIMEOUT_MS })
+  }>('aiTextEstimate', payload, 'POST', '/ai/meal-text-estimate', payload, {
+    timeoutMs: AI_REQUEST_TIMEOUT_MS,
+    retryCloud: false,
+  })
 }
 
 export interface PhotoEstimateOptions {
@@ -643,7 +652,10 @@ export async function aiPhotoEstimate(
     image: { mimeType: string; sizeBytes: number }
     mimeType: string
     imageSizeBytes: number
-  }>('aiPhotoEstimate', payload, 'POST', '/ai/meal-photo-estimate', payload, { timeoutMs: AI_REQUEST_TIMEOUT_MS })
+  }>('aiPhotoEstimate', payload, 'POST', '/ai/meal-photo-estimate', payload, {
+    timeoutMs: AI_REQUEST_TIMEOUT_MS,
+    retryCloud: false,
+  })
 }
 
 export async function createFeedback(content: string) {

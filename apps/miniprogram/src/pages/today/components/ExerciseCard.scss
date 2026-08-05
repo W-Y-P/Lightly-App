@@ -45,33 +45,46 @@
 
 .exercise-link { color: var(--brand); font-size: 23rpx; }
 
-.exercise-stats {
+.exercise-summary {
   display: flex;
-  align-items: stretch;
-  margin-top: 28rpx;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 22rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid var(--line);
 }
 
-.exercise-stat {
+.exercise-summary-main { color: var(--brand-strong); font-size: 30rpx; font-weight: 750; }
+.exercise-summary-sub { color: var(--muted); font-size: 21rpx; }
+
+.exercise-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  margin-top: 14rpx;
+}
+
+.exercise-entry {
   display: flex;
   min-width: 0;
-  flex: 1;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 10rpx;
 }
 
-.exercise-stat-value {
-  max-width: 100%;
+.exercise-entry-name {
+  min-width: 0;
+  flex: 1;
   overflow: hidden;
   color: var(--ink);
-  font-size: 28rpx;
-  font-weight: 720;
+  font-size: 22rpx;
+  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.exercise-stat-unit { margin-top: 8rpx; color: var(--muted); font-size: 21rpx; }
-.exercise-divider { width: 1rpx; background: var(--line); }
+.exercise-entry-value { flex: 0 0 auto; color: var(--muted); font-size: 20rpx; white-space: nowrap; }
+.exercise-entry-kcal { width: 92rpx; color: var(--brand); text-align: right; }
+.exercise-entry-empty { color: var(--muted); font-size: 21rpx; line-height: 1.5; }
 
 .exercise-status {
   display: flex;

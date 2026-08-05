@@ -136,15 +136,15 @@
 .meal-modal-close:active { opacity: 0.6; }
 .meal-modal-close--disabled { opacity: 0.42; }
 .meal-modal-close-text { color: var(--muted); font-size: 26rpx; }
-.meal-modal-body { min-height: 0; flex: 1; }
+.meal-modal-body { height: 58vh; min-height: 0; flex: 0 1 58vh; }
 .meal-modal-body-inner { padding: 22rpx 26rpx; }
 
 .meal-table { width: 100%; }
 .meal-table-header,
 .meal-table-row { display: flex; align-items: center; gap: 8rpx; }
 .meal-table-header { padding: 0 4rpx 10rpx; }
-.meal-table-row { margin-bottom: 10rpx; }
-.meal-row-block { margin-bottom: 16rpx; padding-bottom: 16rpx; border-bottom: 1rpx solid var(--line); }
+.meal-table-row { min-height: 70rpx; }
+.meal-row-block { margin-bottom: 10rpx; }
 .meal-th { color: var(--muted); font-size: 19rpx; }
 .meal-th-food,
 .meal-td-food { min-width: 0; flex: 1.5; }
@@ -154,10 +154,6 @@
 .meal-td-del { width: 72rpx; flex: 0 0 72rpx; }
 .meal-input { width: 100%; height: 70rpx; padding: 0 14rpx; color: var(--ink); font-size: 22rpx; background: #f7f9f7; border: 1rpx solid var(--line); border-radius: 13rpx; }
 .meal-input-num { text-align: center; }
-.meal-macro-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10rpx; padding-right: 80rpx; }
-.meal-macro-field { min-width: 0; }
-.meal-macro-label { display: block; margin-bottom: 7rpx; color: var(--muted); font-size: 18rpx; text-align: center; }
-.meal-macro-input { height: 62rpx; padding: 0 8rpx; }
 .meal-inline-error { margin-top: 10rpx; padding: 12rpx 14rpx; background: #fff4f1; border: 1rpx solid #f1c7bd; border-radius: 10rpx; }
 .meal-inline-error-text { display: block; color: #9a4437; font-size: 19rpx; line-height: 1.45; }
 .meal-photo-error { margin-top: 14rpx; }
@@ -194,6 +190,7 @@
 .meal-footer-btn-text { color: var(--muted); font-size: 24rpx; font-weight: 680; }
 .meal-footer-btn-text--confirm { color: #fff; }
 
+.exercise-modal-body { height: 48vh; flex-basis: 48vh; }
 .exercise-modal-body-inner { padding-top: 22rpx; }
 .exercise-table-header,
 .exercise-table-row { display: flex; align-items: center; gap: 8rpx; }

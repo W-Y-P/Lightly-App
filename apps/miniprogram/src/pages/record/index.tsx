@@ -775,14 +775,12 @@ export default function RecordPage() {
     setMealSubmitError('')
     const target = getTargetDay()
     const rowErrors = mealRows.map((row) => {
-      const hasAnyValue = Boolean(row.foodName.trim() || row.quantityG || row.kcal || row.carbG || row.proteinG || row.fatG)
+      const hasAnyValue = Boolean(row.foodName.trim() || row.quantityG || row.kcal)
       if (!hasAnyValue) return ''
       if (!row.foodName.trim()) return '请填写食物名称。'
       if (!(parseFloat(row.quantityG) > 0)) return '请填写大于 0 的克数。'
       const kcal = parseFloat(row.kcal)
       if (!Number.isFinite(kcal) || kcal < 0) return '请填写不小于 0 kcal 的热量。'
-      const hasMacro = [row.carbG, row.proteinG, row.fatG].some((value) => parseFloat(value) > 0)
-      if (!hasMacro && !(activeMealSlot === 'drink' && kcal === 0)) return '碳水、蛋白质、脂肪至少一项必须大于 0。'
       return ''
     })
     setMealRowErrors(rowErrors)
@@ -1589,25 +1587,6 @@ export default function RecordPage() {
                           <Text className='meal-del-btn-text'>删除</Text>
                         </View>
                       </View>
-                    </View>
-                    <View className='meal-macro-grid'>
-                      {([
-                        ['carbG', '碳水 g'],
-                        ['proteinG', '蛋白质 g'],
-                        ['fatG', '脂肪 g'],
-                      ] as const).map(([field, label]) => (
-                        <View className='meal-macro-field' key={field}>
-                          <Text className='meal-macro-label'>{label}</Text>
-                          <Input
-                            className='meal-input meal-input-num meal-macro-input'
-                            type='digit'
-                            disabled={mealLoading}
-                            value={row[field]}
-                            placeholder='0'
-                            onInput={(e) => updateMealRow(idx, field, e.detail.value)}
-                          />
-                        </View>
-                      ))}
                     </View>
                     {mealRowErrors[idx] && (
                       <View className='meal-inline-error'>

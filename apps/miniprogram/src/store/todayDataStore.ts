@@ -32,6 +32,13 @@ interface TimelineItem {
   items: string[]
 }
 
+export interface ExerciseRecord {
+  id: string
+  exerciseType: string
+  durationMin: number
+  kcal: number
+}
+
 export interface EntitlementInfo {
   pointBalance: number
   freeRemaining: number
@@ -52,6 +59,7 @@ export interface TodayStoreData {
   exerciseCaloriesTotal: number
   exerciseDuration: number
   exerciseType: string
+  exerciseEntries: ExerciseRecord[]
   consecutiveDays: number
   totalStars: number
   currentWeight: number
@@ -87,6 +95,7 @@ function createEmptyTodayData(): TodayStoreData {
     exerciseCaloriesTotal: 0,
     exerciseDuration: 0,
     exerciseType: '尚未记录',
+    exerciseEntries: [],
     consecutiveDays: 0,
     totalStars: 0,
     currentWeight: 0,
