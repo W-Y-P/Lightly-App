@@ -1381,33 +1381,6 @@ function getAiConfig() {
   return { provider: 'mimo', baseUrl, apiKey, model, enabled: Boolean(apiKey) }
 }
 
-const MEAL_ESTIMATE_SCHEMA = Object.freeze({
-  type: 'object',
-  additionalProperties: false,
-  required: ['items', 'message'],
-  properties: {
-    items: {
-      type: 'array',
-      minItems: 1,
-      maxItems: 12,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['foodName', 'quantityG', 'kcal', 'carbG', 'proteinG', 'fatG'],
-        properties: {
-          foodName: { type: 'string', minLength: 1, maxLength: 40 },
-          quantityG: { type: 'number', minimum: 0, maximum: 5000 },
-          kcal: { type: 'number', minimum: 0, maximum: 10000 },
-          carbG: { type: 'number', minimum: 0, maximum: 2000 },
-          proteinG: { type: 'number', minimum: 0, maximum: 1000 },
-          fatG: { type: 'number', minimum: 0, maximum: 1000 },
-        },
-      },
-    },
-    message: { type: 'string', maxLength: 120 },
-  },
-})
-
 function publicAiError(error) {
   const message = String((error && error.message) || error || '')
   if (/timeout|incomplete/i.test(message)) return { code: 504, message: 'ai_timeout' }
@@ -1479,52 +1452,37 @@ function aggregateEstimate(items, confidence) {
   }
 }
 
-function buildMiMoResponsesBody({ description, imageBase64, mimeType }) {
+function buildMiMoChatBody({ description, imageBase64, mimeType }) {
   const config = getAiConfig()
-  const userContent = [{
-    type: 'input_text',
-    text: imageBase64
-      ? '请识别图片中的每种可见食物，并估算可食用部分的克数、热量和三大营养素。'
-      : `用户描述：${String(description || '').slice(0, 1200)}`,
-  }]
+  const userText = imageBase64
+    ? '请识别图片中的每种可见食物，并估算可食用部分的克数、热量和三大营养素。'
+    : `用户描述：${String(description || '').slice(0, 1200)}`
+  const userContent = [{ type: 'text', text: userText }]
   if (imageBase64) {
     userContent.push({
-      type: 'input_image',
-      image_url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}`,
+      type: 'image_url',
+      image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` },
     })
   }
   return {
     model: config.model,
-    instructions: buildMealPrompt(Boolean(imageBase64)),
-    reasoning: { effort: 'none' },
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'meal_estimate',
-        strict: true,
-        schema: MEAL_ESTIMATE_SCHEMA,
-      },
-    },
-    input: [{ role: 'user', content: userContent }],
-    max_output_tokens: 1600,
+    messages: [
+      { role: 'system', content: buildMealPrompt(Boolean(imageBase64)) },
+      { role: 'user', content: imageBase64 ? userContent : userText },
+    ],
+    response_format: { type: 'json_object' },
+    max_completion_tokens: 1600,
     stream: false,
   }
 }
 
-function parseMiMoResponsesOutput(response) {
+function parseMiMoChatOutput(response) {
   if (!response || typeof response !== 'object') throw new Error('ai_invalid_response')
   if (response.error) throw new Error('ai_api_error')
-  if (response.status === 'incomplete') throw new Error(`ai_incomplete_${(response.incomplete_details && response.incomplete_details.reason) || 'unknown'}`)
-
-  const contentParts = Array.isArray(response.output)
-    ? response.output.flatMap((item) => (item && item.type === 'message' && Array.isArray(item.content)) ? item.content : [])
-    : []
-  if (contentParts.some((part) => part && part.type === 'refusal')) throw new Error('ai_refused')
-  const contentText = contentParts
-    .filter((part) => part && part.type === 'output_text')
-    .map((part) => part.text || '')
-    .join('')
-  const text = contentText || String(response.output_text || '')
+  const choice = Array.isArray(response.choices) ? response.choices[0] : null
+  if (!choice) throw new Error('ai_empty_output')
+  if (choice.finish_reason === 'length') throw new Error('ai_incomplete_max_tokens')
+  const text = String((choice.message && choice.message.content) || '')
   if (!text) throw new Error('ai_empty_output')
   try {
     return JSON.parse(text)
@@ -1533,15 +1491,15 @@ function parseMiMoResponsesOutput(response) {
   }
 }
 
-function callMiMoResponses(requestBody) {
+function callMiMoChat(requestBody) {
   const config = getAiConfig()
   if (!config.enabled) {
     return Promise.reject(new Error('ai_not_configured'))
   }
 
-  const endpoint = config.baseUrl.endsWith('/responses')
+  const endpoint = config.baseUrl.endsWith('/chat/completions')
     ? config.baseUrl
-    : `${config.baseUrl}/responses`
+    : `${config.baseUrl}/chat/completions`
   const url = new URL(endpoint)
   if (url.protocol !== 'https:') {
     return Promise.reject(new Error('ai_invalid_base_url'))
@@ -1584,7 +1542,7 @@ function callMiMoResponses(requestBody) {
           return
         }
         try {
-          resolve(parseMiMoResponsesOutput(json))
+          resolve(parseMiMoChatOutput(json))
         } catch (error) {
           reject(error)
         }
@@ -1609,11 +1567,14 @@ function buildMealPrompt(hasImage) {
     '数量按可食用部分估算；热量与碳水、蛋白质、脂肪必须对应同一份量。',
     '估算要保守、日常化，适合中国区饮食；不确定时给出合理近似值。',
     '提示语保持温和，不作医学诊断，不给绝对健康承诺，并提醒用户确认份量。',
+    '只返回 JSON，不要附加解释、注释或 Markdown 代码块。',
+    '返回格式：{"items":[{"foodName":"食物名称","quantityG":100,"kcal":100,"carbG":10,"proteinG":10,"fatG":5}],"message":"请确认份量"}。',
+    'items 必须包含 1 至 12 项；每项六个字段都必须提供数值，未知营养素可保守估算为 0。',
   ].join('\n')
 }
 
 function estimateMealTextWithAi(description, openid) {
-  return callMiMoResponses(buildMiMoResponsesBody({ description, openid })).then((parsed) => {
+  return callMiMoChat(buildMiMoChatBody({ description, openid })).then((parsed) => {
     const items = normalizeMealItems(parsed.items)
     if (!items.length) throw new Error('ai_empty_items')
     return {
@@ -1625,7 +1586,7 @@ function estimateMealTextWithAi(description, openid) {
 }
 
 function estimateMealPhotoWithAi(imageBase64, mimeType, openid) {
-  return callMiMoResponses(buildMiMoResponsesBody({ imageBase64, mimeType, openid })).then((parsed) => {
+  return callMiMoChat(buildMiMoChatBody({ imageBase64, mimeType, openid })).then((parsed) => {
     const items = normalizeMealItems(parsed.items)
     if (!items.length) throw new Error('ai_empty_items')
     return {
@@ -2132,7 +2093,7 @@ exports.__test = {
   DAILY_ACTIVITY_BASELINE_MULTIPLIER,
   PHOTO_RESERVATION_TIMEOUT_MS,
   awardDailyStarIfEligible,
-  buildMiMoResponsesBody,
+  buildMiMoChatBody,
   buildDailyPlanSnapshot,
   calcTDEE,
   calculateDailySummaryMetrics,
@@ -2161,7 +2122,7 @@ exports.__test = {
   planPhotoQuotaRollback,
   planPhotoQuotaReservation,
   planPhotoQuotaReservationWithRecovery,
-  parseMiMoResponsesOutput,
+  parseMiMoChatOutput,
   publicAiError,
   resolveExistingIdempotentDocument,
   resolvePlanEnergyForDate,

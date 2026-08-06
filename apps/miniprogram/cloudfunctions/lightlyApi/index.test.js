@@ -128,23 +128,22 @@ test('photo validation decodes actual bytes and only accepts jpeg, png, or webp'
   assert.match(helpers.validatePhotoInput({ imageBase64: Buffer.from('not an image').toString('base64'), mimeType: 'image/jpeg' }).error, /unrecognized/)
 })
 
-test('MiMo Responses request keeps the key server-side and uses structured multimodal input', () => {
+test('MiMo Chat request keeps the key server-side and uses JSON multimodal input', () => {
   const previousKey = process.env.MIMO_API_KEY
   const previousModel = process.env.MIMO_MODEL
   process.env.MIMO_API_KEY = 'server-only-test-key'
   process.env.MIMO_MODEL = 'mimo-test'
   try {
-    const request = helpers.buildMiMoResponsesBody({
+    const request = helpers.buildMiMoChatBody({
       imageBase64: '/9j/',
       mimeType: 'image/jpeg',
     })
     assert.equal(request.model, 'mimo-test')
-    assert.equal(request.reasoning.effort, 'none')
-    assert.equal(request.text.format.type, 'json_schema')
-    assert.equal(request.text.format.strict, true)
+    assert.equal(request.response_format.type, 'json_object')
     assert.equal(request.stream, false)
-    assert.equal(request.input[0].content[1].type, 'input_image')
-    assert.match(request.input[0].content[1].image_url, /^data:image\/jpeg;base64,/)
+    assert.equal(request.messages[1].content[1].type, 'image_url')
+    assert.match(request.messages[1].content[1].image_url.url, /^data:image\/jpeg;base64,/)
+    assert.match(request.messages[0].content, /只返回 JSON/)
     assert.doesNotMatch(JSON.stringify(request), /server-only-test-key/)
   } finally {
     if (previousKey == null) delete process.env.MIMO_API_KEY
@@ -154,22 +153,18 @@ test('MiMo Responses request keeps the key server-side and uses structured multi
   }
 })
 
-test('MiMo Responses parser accepts output_text and rejects refusals or malformed JSON', () => {
-  const parsed = helpers.parseMiMoResponsesOutput({
-    status: 'completed',
-    output: [{ type: 'message', content: [{
-      type: 'output_text',
-      text: '{"items":[{"foodName":"米饭","quantityG":100,"kcal":116,"carbG":25.9,"proteinG":2.6,"fatG":0.3}],"message":"请确认份量"}',
-    }] }],
+test('MiMo Chat parser accepts message JSON and rejects incomplete or malformed output', () => {
+  const parsed = helpers.parseMiMoChatOutput({
+    choices: [{ finish_reason: 'stop', message: {
+      content: '{"items":[{"foodName":"米饭","quantityG":100,"kcal":116,"carbG":25.9,"proteinG":2.6,"fatG":0.3}],"message":"请确认份量"}',
+    } }],
   })
   assert.equal(parsed.items[0].foodName, '米饭')
-  assert.throws(() => helpers.parseMiMoResponsesOutput({
-    status: 'completed',
-    output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }],
-  }), /ai_refused/)
-  assert.throws(() => helpers.parseMiMoResponsesOutput({
-    status: 'completed',
-    output: [{ type: 'message', content: [{ type: 'output_text', text: 'not-json' }] }],
+  assert.throws(() => helpers.parseMiMoChatOutput({
+    choices: [{ finish_reason: 'length', message: { content: '{}' } }],
+  }), /ai_incomplete/)
+  assert.throws(() => helpers.parseMiMoChatOutput({
+    choices: [{ finish_reason: 'stop', message: { content: 'not-json' } }],
   }), /ai_invalid_json/)
 })
 

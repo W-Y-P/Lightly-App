@@ -75,7 +75,7 @@ npx -y -p @cloudbase/cli@latest tcb fn detail lightlyApi -e cloud1-d0gkjbgmncb3b
 
 ## 4. 配置大模型环境变量
 
-云函数通过小米 MiMo 的 OpenAI-compatible Responses API 进行文字和图片识别，模型固定默认使用多模态 `mimo-v2.5`。密钥必须只放在微信云函数环境变量中，不要写入源码、`project.config.json`、构建产物或聊天记录。
+云函数通过小米 MiMo 的 OpenAI-compatible Chat Completions API 进行文字和图片识别，模型固定默认使用多模态 `mimo-v2.5`，结构化结果使用官方支持的 `json_object` 模式。密钥必须只放在微信云函数环境变量中，不要写入源码、`project.config.json`、构建产物或聊天记录。
 
 在 [小米 MiMo 控制台](https://platform.xiaomimimo.com/) 创建 API Key。不要把完整密钥发给 Codex；请直接在腾讯云控制台中设置。任何曾粘贴到聊天、终端或代码中的密钥都应立即吊销并重新创建。
 
