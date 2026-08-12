@@ -75,6 +75,7 @@
 .today-ai-actions { display: flex; gap: 12rpx; margin-top: 12rpx; }
 .today-ai-action { display: flex; min-height: 66rpx; flex: 1; align-items: center; justify-content: center; color: #fff; font-size: 21rpx; font-weight: 680; background: #168a5b; border-radius: 13rpx; }
 .today-ai-action--photo { background: #327fab; }
+.today-ai-action--album { color: #28637e; background: #e7f3f8; border: 1rpx solid #b9d8e5; }
 
 .today-record-footer { flex: 0 0 auto; padding: 14rpx 24rpx calc(18rpx + env(safe-area-inset-bottom)); background: #fff; border-top: 1rpx solid #e4ebe6; }
 .today-record-error { display: block; margin-bottom: 10rpx; color: #a34438; font-size: 20rpx; line-height: 1.4; text-align: center; }
@@ -97,7 +98,14 @@
 .today-photo-lens { width: 42rpx; height: 42rpx; border: 8rpx solid #168a5b; border-radius: 50%; box-shadow: 0 0 0 7rpx #fff inset; }
 .today-photo-title { margin-top: 24rpx; color: #17221b; font-size: 27rpx; font-weight: 710; }
 .today-photo-desc { max-width: 520rpx; margin-top: 10rpx; color: #748078; font-size: 21rpx; line-height: 1.5; text-align: center; }
-.today-photo-retry { display: flex; min-height: 70rpx; align-items: center; justify-content: center; margin-top: 24rpx; padding: 0 28rpx; color: #fff; font-size: 22rpx; font-weight: 680; background: #168a5b; border-radius: 15rpx; }
+.today-photo-actions { display: flex; width: 100%; max-width: 560rpx; gap: 16rpx; margin-top: 28rpx; }
+.today-photo-source { display: flex; min-height: 170rpx; flex: 1; flex-direction: column; align-items: center; justify-content: center; color: #fff; background: #168a5b; border-radius: 18rpx; box-shadow: 0 8rpx 20rpx rgba(22, 138, 91, 0.14); }
+.today-photo-source--album { color: #285e76; background: #edf7fb; border: 1rpx solid #c6e0ea; box-shadow: none; }
+.today-photo-source-icon { position: relative; display: flex; width: 48rpx; height: 42rpx; align-items: center; justify-content: center; margin-bottom: 10rpx; border: 3rpx solid currentColor; border-radius: 9rpx; }
+.today-photo-source-lens { width: 16rpx; height: 16rpx; border: 4rpx solid currentColor; border-radius: 50%; }
+.today-photo-source-icon--album { font-size: 31rpx; border: 0; }
+.today-photo-source-title { font-size: 23rpx; font-weight: 700; }
+.today-photo-source-note { margin-top: 4rpx; font-size: 18rpx; opacity: 0.78; }
 
 .today-exercise-col-type { min-width: 0; flex: 1; }
 .today-exercise-col-number { width: 130rpx; flex: 0 0 130rpx; text-align: center; }

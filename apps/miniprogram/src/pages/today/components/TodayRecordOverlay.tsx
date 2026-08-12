@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Input, Picker, ScrollView, Text, Textarea, View } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import {
@@ -11,6 +11,15 @@ import {
   type MealItemInput,
 } from '../../../api/client'
 import { localDateString, type MealSlot } from '../../../utils/recordIntent'
+import {
+  describePhotoPickerError,
+  detectPhotoMimeType,
+  isPhotoPickerCancel,
+  isPhotoPickerError,
+  pickSinglePhoto,
+  photoPickerErrorMessage,
+  type PhotoSource,
+} from '../../../utils/photoPicker'
 import { useTodayData } from '../../../store/todayDataStore'
 import './TodayRecordOverlay.scss'
 
@@ -138,40 +147,9 @@ function readFileAsBase64(filePath: string): Promise<string> {
   })
 }
 
-function inferMimeType(filePath: string): string {
-  const clean = filePath.split('?')[0].toLowerCase()
-  if (clean.endsWith('.png')) return 'image/png'
-  if (clean.endsWith('.webp')) return 'image/webp'
-  return 'image/jpeg'
-}
-
-function requirePrivacyAuthorization(): Promise<void> {
-  const wechat = typeof wx !== 'undefined' ? wx as any : null
-  if (!wechat || typeof wechat.requirePrivacyAuthorize !== 'function') return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    wechat.requirePrivacyAuthorize({ success: resolve, fail: reject })
-  })
-}
-
-async function chooseImage(): Promise<string> {
-  const sourceResult = await Taro.showActionSheet({ itemList: ['拍照', '从相册选择'] })
-  const sourceType = sourceResult.tapIndex === 0 ? 'camera' : 'album'
-  if (Taro.canIUse('chooseMedia')) {
-    const result = await Taro.chooseMedia({
-      count: 1,
-      mediaType: ['image'],
-      sourceType: [sourceType],
-      sizeType: ['compressed'],
-    })
-    return result.tempFiles[0]?.tempFilePath || ''
-  }
-  const result = await Taro.chooseImage({ count: 1, sourceType: [sourceType], sizeType: ['compressed'] })
-  return result.tempFilePaths[0] || ''
-}
-
 function isCancelError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return /cancel|取消/i.test(message)
+  return isPhotoPickerCancel(error) || /cancel|取消/i.test(message)
 }
 
 export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRecordOverlayProps) {
@@ -186,13 +164,11 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
   const [photoRows, setPhotoRows] = useState<MealRow[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const photoLaunchRef = useRef(false)
 
   const currentWeight = today.currentWeight > 0 ? today.currentWeight : 70
 
   useEffect(() => {
     if (!action) {
-      photoLaunchRef.current = false
       return
     }
     void Taro.hideTabBar({ animation: false }).catch(() => {})
@@ -213,10 +189,9 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       setView('weight')
       setWeightValue(today.currentWeight > 0 ? today.currentWeight.toFixed(1) : '')
       setWeighingContext('morning')
-    } else if (!photoLaunchRef.current) {
-      photoLaunchRef.current = true
+    } else {
+      setPhotoRows([])
       setView('photo')
-      void recognizePhoto(true)
     }
   }, [action])
 
@@ -244,10 +219,9 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
     })
   }
 
-  async function recognizePhoto(chooseSlotAfter: boolean) {
+  async function recognizePhoto(source: PhotoSource, chooseSlotAfter: boolean) {
     setError('')
     try {
-      await requirePrivacyAuthorization()
       if (!Taro.getStorageSync('aiPhotoPrivacyConsent')) {
         const consent = await Taro.showModal({
           title: '照片识别说明',
@@ -262,24 +236,26 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
         Taro.setStorageSync('aiPhotoPrivacyConsent', true)
       }
 
-      const originalPath = await chooseImage()
+      const chosenPhoto = await pickSinglePhoto(source)
+      const originalPath = chosenPhoto.tempFilePath
       if (!originalPath) throw new Error('image_missing')
       setBusy(true)
       setView('photo')
 
       let imagePath = originalPath
-      let base64 = ''
-      for (const quality of [80, 60, 40, 25]) {
-        const compressed = await Taro.compressImage({ src: originalPath, quality })
-        imagePath = compressed.tempFilePath
-        base64 = await readFileAsBase64(imagePath)
-        if (base64ByteLength(base64) <= MAX_PHOTO_BYTES) break
+      let base64 = await readFileAsBase64(originalPath)
+      if (base64ByteLength(base64) > MAX_PHOTO_BYTES) {
+        for (const quality of [80, 60, 40, 25]) {
+          const compressed = await Taro.compressImage({ src: originalPath, quality })
+          imagePath = compressed.tempFilePath
+          base64 = await readFileAsBase64(imagePath)
+          if (base64ByteLength(base64) <= MAX_PHOTO_BYTES) break
+        }
       }
-      if (!base64) base64 = await readFileAsBase64(imagePath)
       if (base64ByteLength(base64) > MAX_PHOTO_BYTES) throw new Error('image_too_large')
 
-      const mimeType = inferMimeType(imagePath)
-      if (!PHOTO_MIME_TYPES.has(mimeType)) throw new Error('image_type_unsupported')
+      const mimeType = detectPhotoMimeType(base64)
+      if (!mimeType || !PHOTO_MIME_TYPES.has(mimeType)) throw new Error('image_type_unsupported')
       const requestId = makeId('today-photo')
       const runEstimate = (usePoint: boolean) => aiPhotoEstimate(base64, {
         mimeType,
@@ -328,12 +304,17 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
         else setView('meal')
         return
       }
-      const message = photoError instanceof Error ? photoError.message : String(photoError)
+      const message = photoPickerErrorMessage(photoError)
       const friendly = /not_configured/.test(message)
         ? 'AI 服务还未配置 API key，请先手动记录'
         : /too_large/.test(message)
           ? '图片仍大于 1MB，请裁剪后重试'
-          : '照片识别失败，请重试或改用文字解析'
+          : /image_missing/.test(message)
+            ? '没有取得照片，请重新选择'
+            : isPhotoPickerError(photoError)
+              ? describePhotoPickerError(photoError, source)
+              : '照片识别失败，请重试或改用文字解析'
+      console.error('[TodayPhoto] photo recognition failed:', message)
       setError(friendly)
       setView(chooseSlotAfter ? 'photo' : 'meal')
     } finally {
@@ -536,7 +517,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
           <View>
             <Text className='today-record-kicker'>今天</Text>
             <Text className='today-record-title'>
-              {view === 'meal' ? `记录${slotLabel}` : view === 'exercise' ? '记录运动' : view === 'weight' ? '体重打卡' : view === 'slot' ? '记录到哪一餐？' : 'AI 正在识别'}
+              {view === 'meal' ? `记录${slotLabel}` : view === 'exercise' ? '记录运动' : view === 'weight' ? '体重打卡' : view === 'slot' ? '记录到哪一餐？' : busy ? 'AI 正在识别' : 'AI 拍照识别'}
             </Text>
           </View>
           <View className={`today-record-close ${busy ? 'today-record-control--disabled' : ''}`} onClick={close}>
@@ -549,10 +530,21 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
             <View className={`today-photo-pulse ${busy ? 'today-photo-pulse--active' : ''}`}>
               <View className='today-photo-lens' />
             </View>
-            <Text className='today-photo-title'>{busy ? '正在识别食物和份量' : '没有完成识别'}</Text>
-            <Text className='today-photo-desc'>{busy ? '通常需要几秒，照片不会保存在本服务中' : error || '可以重新拍照或从相册选择'}</Text>
+            <Text className='today-photo-title'>{busy ? '正在识别食物和份量' : error ? '没有完成识别' : '选择照片来源'}</Text>
+            <Text className='today-photo-desc'>{busy ? '通常需要几秒，照片不会保存在本服务中' : error || '拍摄当前餐食，或从相册选择已有照片'}</Text>
             {!busy && (
-              <View className='today-photo-retry' onClick={() => void recognizePhoto(true)}><Text>重新选择照片</Text></View>
+              <View className='today-photo-actions'>
+                <View className='today-photo-source today-photo-source--camera' onClick={() => void recognizePhoto('camera', true)}>
+                  <View className='today-photo-source-icon'><View className='today-photo-source-lens' /></View>
+                  <Text className='today-photo-source-title'>拍照</Text>
+                  <Text className='today-photo-source-note'>打开后置相机</Text>
+                </View>
+                <View className='today-photo-source today-photo-source--album' onClick={() => void recognizePhoto('album', true)}>
+                  <View className='today-photo-source-icon today-photo-source-icon--album'><Text>▧</Text></View>
+                  <Text className='today-photo-source-title'>相册</Text>
+                  <Text className='today-photo-source-note'>选择已有照片</Text>
+                </View>
+              </View>
             )}
           </View>
         ) : view === 'slot' ? (
@@ -600,7 +592,8 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
                   <Textarea className='today-ai-textarea' value={mealText} disabled={busy} maxlength={500} placeholder='例如：一碗米饭、番茄炒蛋和一杯豆浆' onInput={(event) => setMealText(event.detail.value)} />
                   <View className='today-ai-actions'>
                     <View className={`today-ai-action ${busy ? 'today-record-control--disabled' : ''}`} onClick={() => void parseMealText()}><Text>AI 解析</Text></View>
-                    <View className={`today-ai-action today-ai-action--photo ${busy ? 'today-record-control--disabled' : ''}`} onClick={() => void recognizePhoto(false)}><Text>拍照 / 相册</Text></View>
+                    <View className={`today-ai-action today-ai-action--photo ${busy ? 'today-record-control--disabled' : ''}`} onClick={() => void recognizePhoto('camera', false)}><Text>拍照</Text></View>
+                    <View className={`today-ai-action today-ai-action--album ${busy ? 'today-record-control--disabled' : ''}`} onClick={() => void recognizePhoto('album', false)}><Text>相册</Text></View>
                   </View>
                 </View>
               </View>

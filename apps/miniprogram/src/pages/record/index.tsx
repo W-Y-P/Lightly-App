@@ -30,6 +30,15 @@ import type {
   WeightEntry,
 } from '../../api/client'
 import { RecordIntent, localDateString, takeRecordIntent } from '../../utils/recordIntent'
+import {
+  describePhotoPickerError,
+  detectPhotoMimeType,
+  isPhotoPickerCancel,
+  isPhotoPickerError,
+  pickSinglePhoto,
+  photoPickerErrorMessage,
+  type PhotoSource,
+} from '../../utils/photoPicker'
 import './index.scss'
 
 const MEAL_SLOTS = [
@@ -156,18 +165,6 @@ function makeExerciseRow(
   }
 }
 
-function inferImageMimeType(filePath: string, fileType?: string): string {
-  const normalizedType = fileType?.toLowerCase()
-  if (normalizedType?.startsWith('image/')) return normalizedType
-  const cleanPath = filePath.split('?')[0].toLowerCase()
-  if (/\.png$/.test(cleanPath)) return 'image/png'
-  if (/\.webp$/.test(cleanPath)) return 'image/webp'
-  if (/\.gif$/.test(cleanPath)) return 'image/gif'
-  if (/\.(heic|heif)$/.test(cleanPath)) return 'image/heic'
-  if (/\.(jpg|jpeg|jfif)$/.test(cleanPath)) return 'image/jpeg'
-  return normalizedType === 'image' ? 'image/jpeg' : 'image/jpeg'
-}
-
 function readFileAsBase64(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     Taro.getFileSystemManager().readFile({
@@ -177,29 +174,6 @@ function readFileAsBase64(filePath: string): Promise<string> {
       fail: reject,
     })
   })
-}
-
-function requirePlatformPrivacyAuthorization(): Promise<void> {
-  const wechat = typeof wx !== 'undefined' ? wx as any : null
-  if (!wechat || typeof wechat.requirePrivacyAuthorize !== 'function') return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    wechat.requirePrivacyAuthorize({ success: resolve, fail: reject })
-  })
-}
-
-async function chooseOneImage(): Promise<{ tempFilePath: string; fileType?: string }> {
-  if (Taro.canIUse('chooseMedia')) {
-    const result = await Taro.chooseMedia({
-      count: 1,
-      mediaType: ['image'],
-      sourceType: ['camera', 'album'],
-      sizeType: ['compressed'],
-    })
-    return result.tempFiles[0]
-  }
-  const legacy = await Taro.chooseImage({ count: 1, sourceType: ['camera', 'album'], sizeType: ['compressed'] })
-  const first = legacy.tempFiles?.[0]
-  return { tempFilePath: first?.path || legacy.tempFilePaths[0], fileType: 'image' }
 }
 
 function base64ByteLength(value: string): number {
@@ -666,11 +640,10 @@ export default function RecordPage() {
   }
 
   // ── AI 拍照识别 ──
-  const handleMealPhoto = async (initialUsePoint = false) => {
+  const handleMealPhoto = async (source: PhotoSource, initialUsePoint = false) => {
     if (mealLoading) return
     setMealPhotoError('')
     try {
-      await requirePlatformPrivacyAuthorization()
       if (!Taro.getStorageSync('aiPhotoPrivacyConsent')) {
         const consent = await Taro.showModal({
           title: '照片识别说明',
@@ -682,24 +655,25 @@ export default function RecordPage() {
         Taro.setStorageSync('aiPhotoPrivacyConsent', true)
       }
       setMealLoading(true)
-      const chosenFile = await chooseOneImage()
+      const chosenFile = await pickSinglePhoto(source)
       if (!chosenFile?.tempFilePath) return
 
       let uploadPath = chosenFile.tempFilePath
-      let base64 = ''
-      for (const quality of [80, 60, 40, 25]) {
-        const compressed = await Taro.compressImage({ src: chosenFile.tempFilePath, quality })
-        uploadPath = compressed.tempFilePath
-        base64 = await readFileAsBase64(uploadPath)
-        if (base64ByteLength(base64) <= MAX_PHOTO_BYTES) break
+      let base64 = await readFileAsBase64(uploadPath)
+      if (base64ByteLength(base64) > MAX_PHOTO_BYTES) {
+        for (const quality of [80, 60, 40, 25]) {
+          const compressed = await Taro.compressImage({ src: chosenFile.tempFilePath, quality })
+          uploadPath = compressed.tempFilePath
+          base64 = await readFileAsBase64(uploadPath)
+          if (base64ByteLength(base64) <= MAX_PHOTO_BYTES) break
+        }
       }
-      if (!base64) base64 = await readFileAsBase64(uploadPath)
       if (base64ByteLength(base64) > MAX_PHOTO_BYTES) {
         setMealPhotoError('图片压缩后仍超过 1MB，请裁剪后重试。已填写的食物内容会保留。')
         return
       }
-      const mimeType = inferImageMimeType(uploadPath, chosenFile.fileType)
-      if (!SUPPORTED_PHOTO_MIME_TYPES.has(mimeType)) {
+      const mimeType = detectPhotoMimeType(base64)
+      if (!mimeType || !SUPPORTED_PHOTO_MIME_TYPES.has(mimeType)) {
         setMealPhotoError('暂不支持这种图片格式，请选择 JPG、PNG 或 WebP 图片。')
         return
       }
@@ -759,10 +733,12 @@ export default function RecordPage() {
         Taro.showToast({ title: message, icon: 'none', duration: 2500 })
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!msg.includes('cancel') && !msg.includes('取消')) {
-        setMealPhotoError('图片处理失败，请重试。已填写的食物内容会保留。')
-        Taro.showToast({ title: '拍照失败', icon: 'none' })
+      if (!isPhotoPickerCancel(err)) {
+        const msg = photoPickerErrorMessage(err)
+        const message = isPhotoPickerError(err) ? describePhotoPickerError(err, source) : '图片处理失败，请重试'
+        console.error('[RecordPhoto] photo recognition failed:', msg)
+        setMealPhotoError(`${message}。已填写的食物内容会保留。`)
+        Taro.showToast({ title: message, icon: 'none', duration: 2500 })
       }
     } finally {
       setMealLoading(false)
@@ -1128,7 +1104,7 @@ export default function RecordPage() {
     setPendingIntent(null)
     if (pendingIntent.type === 'meal') {
       openMealModal(pendingIntent.slot)
-      if (pendingIntent.mode === 'photo') Taro.nextTick(() => handleMealPhoto(Boolean(pendingIntent.usePoint)))
+      if (pendingIntent.mode === 'photo') setMealPhotoError('请选择拍照或相册，识别结果会先由你确认。')
     } else if (pendingIntent.type === 'exercise') {
       openExerciseModal(EXERCISE_TYPES[0].type)
     } else if (pendingIntent.type === 'weight') {
@@ -1643,9 +1619,15 @@ export default function RecordPage() {
                   </View>
                   <View
                     className={`meal-ai-btn meal-ai-btn--photo ${mealLoading ? 'meal-control--disabled' : ''}`}
-                    onClick={() => handleMealPhoto()}
+                    onClick={() => handleMealPhoto('camera')}
                   >
-                    <Text className='meal-ai-btn-text'>拍照识别</Text>
+                    <Text className='meal-ai-btn-text'>拍照</Text>
+                  </View>
+                  <View
+                    className={`meal-ai-btn meal-ai-btn--album ${mealLoading ? 'meal-control--disabled' : ''}`}
+                    onClick={() => handleMealPhoto('album')}
+                  >
+                    <Text className='meal-ai-btn-text'>相册</Text>
                   </View>
                 </View>
                 {mealPhotoError && (

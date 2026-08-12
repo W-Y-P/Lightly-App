@@ -177,6 +177,7 @@
 .meal-ai-row { display: flex; gap: 12rpx; margin-top: 12rpx; }
 .meal-ai-btn { display: flex; min-height: 68rpx; flex: 1; align-items: center; justify-content: center; background: var(--brand); border-radius: 14rpx; }
 .meal-ai-btn--photo { background: var(--blue); }
+.meal-ai-btn--album { background: #517f90; }
 .meal-ai-btn:active { opacity: 0.72; }
 .meal-ai-btn-text { color: #fff; font-size: 21rpx; font-weight: 680; }
 
