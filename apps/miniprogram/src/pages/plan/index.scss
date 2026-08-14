@@ -378,41 +378,54 @@
   white-space: nowrap;
 }
 
-.plan-activity-scale { padding: 18rpx 4rpx 2rpx; }
+.plan-activity-card { border-top: 6rpx solid var(--blue); }
 
-.plan-activity-track {
-  position: relative;
-  height: 8rpx;
-  border-radius: 4rpx;
-  background: var(--line);
+.plan-activity-status {
+  flex-shrink: 0;
+  padding-top: 4rpx;
+  color: var(--brand);
+  font-size: 21rpx;
+  font-weight: 650;
 }
 
-.plan-activity-fill {
-  height: 8rpx;
-  border-radius: 4rpx;
-  background: var(--brand);
+.plan-activity-status--error { color: var(--danger); }
+
+.plan-activity-preview {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 18rpx;
+  padding: 20rpx;
+  border: 1rpx solid #d8e9df;
+  border-radius: 14rpx;
+  background: #f2f8f4;
 }
 
-.plan-activity-marker {
-  position: absolute;
-  top: 50%;
-  width: 22rpx;
-  height: 22rpx;
-  box-sizing: border-box;
-  border: 4rpx solid var(--surface);
-  border-radius: 50%;
-  background: var(--brand);
-  box-shadow: 0 0 0 2rpx var(--brand);
-  transform: translate(-50%, -50%);
-}
+.plan-activity-preview > view { min-width: 0; display: flex; flex-direction: column; }
+.plan-activity-preview > view:last-child { align-items: flex-end; text-align: right; }
+.plan-activity-preview-label { color: var(--muted); font-size: 19rpx; }
+.plan-activity-preview-value { margin-top: 6rpx; color: var(--ink); font-size: 30rpx; font-weight: 700; white-space: nowrap; }
+.plan-activity-preview-value text { font-size: 17rpx; font-weight: 500; }
+.plan-activity-preview-value--brand { color: var(--brand); }
+.plan-activity-preview-arrow { color: var(--faint); font-size: 28rpx; }
+
+.plan-activity-slider { margin: 26rpx 0 0; }
 
 .plan-activity-labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 16rpx;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin-top: 2rpx;
   color: var(--muted);
-  font-size: 19rpx;
+  font-size: 18rpx;
+  text-align: center;
 }
+
+.plan-activity-label--active { color: var(--brand); font-weight: 700; }
+
+.plan-activity-help,
+.plan-activity-error { display: block; margin-top: 18rpx; font-size: 19rpx; line-height: 1.5; }
+.plan-activity-help { color: var(--muted); }
+.plan-activity-error { color: var(--danger); }
 
 .plan-note {
   display: flex;

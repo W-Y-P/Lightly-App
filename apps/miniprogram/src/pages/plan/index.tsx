@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Input, Picker, Text, View } from '@tarojs/components'
+import { Input, Picker, Slider, Text, View } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import {
   ensureAuthReady,
@@ -7,7 +7,9 @@ import {
   PlanRecord,
   updatePlanGoal,
   updatePlanMacros,
+  updatePlanActivity,
 } from '../../api/client'
+import { ACTIVITY_LEVELS, nearestActivityIndex } from '../../utils/activityLevels'
 import './index.scss'
 
 interface PlanView {
@@ -25,7 +27,6 @@ interface PlanView {
     fat: { min: number; max: number }
   }
   activityLevel: number
-  activityLabel: string
 }
 
 type ModalKind = 'goal' | 'macros' | null
@@ -46,14 +47,6 @@ interface MacroForm {
   carbMax: string
   fatMin: string
   fatMax: string
-}
-
-function activityLabel(level: number): string {
-  if (level < 1.3) return '久坐，日常活动较少'
-  if (level < 1.4) return '少量走动，偶尔站立或做家务'
-  if (level < 1.55) return '经常走动，日常站立时间较多'
-  if (level < 1.7) return '日常活跃，包含轻体力活动'
-  return '体力活动较多'
 }
 
 function normalizeDate(value: string | null | undefined): string {
@@ -77,7 +70,6 @@ function mapRecord(record: PlanRecord): PlanView {
       fat: { min: record.fatMinG, max: record.fatMaxG },
     },
     activityLevel: record.activityLevel,
-    activityLabel: activityLabel(record.activityLevel),
   }
 }
 
@@ -106,6 +98,9 @@ export default function PlanPage() {
   const [modal, setModal] = useState<ModalKind>(null)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [activityIndex, setActivityIndex] = useState(2)
+  const [activitySaving, setActivitySaving] = useState(false)
+  const [activityError, setActivityError] = useState('')
   const [goalForm, setGoalForm] = useState<GoalForm>({
     targetWeight: '', weeklyLoss: '', targetDate: '', mode: 'weekly',
   })
@@ -131,7 +126,9 @@ export default function PlanPage() {
         const result = await getCurrentPlan()
         if (!active) return
         if (result.ok && result.data.plan) {
-          setPlan(mapRecord(result.data.plan))
+          const nextPlan = mapRecord(result.data.plan)
+          setPlan(nextPlan)
+          setActivityIndex(nearestActivityIndex(nextPlan.activityLevel))
           setLoadState('real')
         } else if (result.ok || result.error === 'no_active_plan') {
           setPlan(null)
@@ -193,7 +190,15 @@ export default function PlanPage() {
   }
 
   const remainingWeight = Math.max(0, plan.currentWeight - plan.targetWeight)
-  const activityProgress = Math.max(0, Math.min(100, ((plan.activityLevel - 1.2) / 0.7) * 100))
+  const selectedActivity = ACTIVITY_LEVELS[activityIndex] ?? ACTIVITY_LEVELS[0]
+  const previewTdee = Math.round(plan.bmr * selectedActivity.value)
+  const requestedDailyDeficit = plan.weeklyLoss != null
+    ? Math.round((plan.weeklyLoss * 7700) / 7)
+    : plan.targetDate
+      ? Math.max(0, Math.round(((plan.currentWeight - plan.targetWeight) * 7700) / Math.max(1, Math.ceil((new Date(`${plan.targetDate}T00:00:00`).getTime() - Date.now()) / 86400000))))
+      : plan.dailyDeficit
+  const previewRecommendedIntake = Math.max(1200, previewTdee - requestedDailyDeficit)
+  const previewDailyDeficit = Math.max(0, previewTdee - previewRecommendedIntake)
 
   const openGoalModal = () => {
     setPlanTabBarVisible(false)
@@ -350,10 +355,39 @@ export default function PlanPage() {
     }
   }
 
+  const saveActivity = async (nextIndex: number) => {
+    if (activitySaving) return
+    const normalizedIndex = Math.max(0, Math.min(ACTIVITY_LEVELS.length - 1, Math.round(nextIndex)))
+    const previousIndex = nearestActivityIndex(plan.activityLevel)
+    const activity = ACTIVITY_LEVELS[normalizedIndex]
+    setActivityIndex(normalizedIndex)
+    setActivityError('')
+    if (activity.value === plan.activityLevel) return
+
+    setActivitySaving(true)
+    try {
+      const result = await updatePlanActivity(activity.value)
+      if (!result.ok) {
+        setActivityIndex(previousIndex)
+        setActivityError('活动水平没有保存成功，请检查网络后重试')
+        return
+      }
+      const nextPlan = mapRecord(result.data.plan)
+      setPlan(nextPlan)
+      setActivityIndex(nearestActivityIndex(nextPlan.activityLevel))
+      Taro.showToast({ title: '活动水平已更新', icon: 'success' })
+    } catch {
+      setActivityIndex(previousIndex)
+      setActivityError('活动水平没有保存成功，请检查网络后重试')
+    } finally {
+      setActivitySaving(false)
+    }
+  }
+
   const energyRows = [
-    { label: '每日总消耗', value: plan.tdee, suffix: 'kcal' },
-    { label: '目标缺口', value: -plan.dailyDeficit, suffix: 'kcal' },
-    { label: '建议摄入', value: plan.recommendedIntake, suffix: 'kcal', emphasized: true },
+    { label: '每日总消耗', value: previewTdee, suffix: 'kcal' },
+    { label: '目标缺口', value: -previewDailyDeficit, suffix: 'kcal' },
+    { label: '建议摄入', value: previewRecommendedIntake, suffix: 'kcal', emphasized: true },
   ]
   const macroRows = [
     { key: 'protein', name: '蛋白质', note: '帮助维持肌肉', range: plan.macros.protein },
@@ -397,6 +431,55 @@ export default function PlanPage() {
         </View>
       </View>
 
+      <View className='plan-card plan-activity-card'>
+        <View className='plan-section-header plan-section-header--compact'>
+          <View>
+            <Text className='plan-section-title'>活动水平</Text>
+            <Text className='plan-section-caption'>{selectedActivity.label} · {selectedActivity.description}</Text>
+          </View>
+          <Text className={`plan-activity-status ${activityError ? 'plan-activity-status--error' : ''}`}>
+            {activitySaving ? '保存中…' : activityError ? '未保存' : `${selectedActivity.value.toFixed(2)} 倍`}
+          </Text>
+        </View>
+        <View className='plan-activity-preview'>
+          <View>
+            <Text className='plan-activity-preview-label'>基础代谢参考</Text>
+            <Text className='plan-activity-preview-value'>{plan.bmr}<Text> kcal</Text></Text>
+          </View>
+          <Text className='plan-activity-preview-arrow'>→</Text>
+          <View>
+            <Text className='plan-activity-preview-label'>每日总消耗</Text>
+            <Text className='plan-activity-preview-value plan-activity-preview-value--brand'>{previewTdee}<Text> kcal</Text></Text>
+          </View>
+        </View>
+        <Slider
+          className='plan-activity-slider'
+          min={0}
+          max={ACTIVITY_LEVELS.length - 1}
+          step={1}
+          value={activityIndex}
+          disabled={activitySaving}
+          activeColor='#168a5b'
+          backgroundColor='#dfe8e2'
+          blockColor='#168a5b'
+          blockSize={22}
+          onChanging={(event) => {
+            if (!activitySaving) {
+              setActivityIndex(Math.round(event.detail.value))
+              setActivityError('')
+            }
+          }}
+          onChange={(event) => void saveActivity(event.detail.value)}
+        />
+        <View className='plan-activity-labels'>
+          {ACTIVITY_LEVELS.map((item, index) => (
+            <Text key={item.value} className={index === activityIndex ? 'plan-activity-label--active' : ''}>{item.shortLabel}</Text>
+          ))}
+        </View>
+        <Text className='plan-activity-help'>活动水平会调整每日总消耗和建议摄入；基础代谢由体重、身高、年龄与性别估算，不随活动档位改变。</Text>
+        {activityError ? <Text className='plan-activity-error'>{activityError}</Text> : null}
+      </View>
+
       <View className='plan-card'>
         <View className='plan-section-header plan-section-header--compact'>
           <View><Text className='plan-section-title'>每日能量</Text><Text className='plan-section-caption'>根据当前体重与活动水平估算</Text></View>
@@ -429,16 +512,6 @@ export default function PlanPage() {
               <Text className='plan-macro-range'>{row.range.min}-{row.range.max} g</Text>
             </View>
           ))}
-        </View>
-      </View>
-
-      <View className='plan-card'>
-        <View className='plan-section-header plan-section-header--compact'>
-          <View><Text className='plan-section-title'>活动水平</Text><Text className='plan-section-caption'>{plan.activityLabel}</Text></View>
-        </View>
-        <View className='plan-activity-scale'>
-          <View className='plan-activity-track'><View className='plan-activity-fill' style={{ width: `${activityProgress}%` }} /><View className='plan-activity-marker' style={{ left: `${activityProgress}%` }} /></View>
-          <View className='plan-activity-labels'><Text>较少</Text><Text>适中</Text><Text>较多</Text></View>
         </View>
       </View>
 

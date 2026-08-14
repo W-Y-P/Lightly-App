@@ -627,6 +627,21 @@ function getCurrentPlan(payload, openid) {
   })
 }
 
+async function refreshCurrentDailyPlanSnapshot(openid, plan) {
+  const date = getBeijingDate()
+  const snapshot = buildDailyPlanSnapshot(plan)
+  if (!snapshot) return
+  const snapshotId = stableDocumentId('daily_plan_snapshot', openid, date)
+  await db.collection(DAILY_PLAN_SNAPSHOT_COLLECTION).doc(snapshotId).set({
+    data: {
+      openid,
+      date,
+      ...snapshot,
+      capturedAt: db.serverDate(),
+    },
+  })
+}
+
 function updatePlanGoal(payload, openid) {
   const mode = payload && payload.mode
   const hasTargetWeight = hasOwn(payload, 'targetWeightKg') && payload.targetWeightKg != null
@@ -688,8 +703,9 @@ function updatePlanGoal(payload, openid) {
       updatedAt: db.serverDate(),
     }
 
-    return db.collection('plans').doc(plan._id).update({ data: updates }).then(() => {
+    return db.collection('plans').doc(plan._id).update({ data: updates }).then(async () => {
       const updated = { ...plan, ...updates, id: plan._id }
+      await refreshCurrentDailyPlanSnapshot(openid, updated)
       delete updated.openid
       delete updated._id
       return { code: 0, data: { plan: updated }, message: 'ok' }
@@ -723,6 +739,32 @@ function updatePlanMacros(payload, openid) {
     const data = { ...updates, updatedAt: db.serverDate() }
     return db.collection('plans').doc(plan._id).update({ data }).then(() => {
       const updated = { ...plan, ...data, id: plan._id }
+      delete updated.openid
+      delete updated._id
+      return { code: 0, data: { plan: updated }, message: 'ok' }
+    })
+  })
+}
+
+function updatePlanActivity(payload, openid) {
+  const activityLevel = Number(payload && payload.activityLevel)
+  if (!Number.isFinite(activityLevel) || activityLevel < 1.2 || activityLevel > 1.75) {
+    return Promise.resolve({ code: 400, data: null, message: 'invalid activityLevel' })
+  }
+
+  return db.collection('plans').where({ openid }).orderBy('createdAt', 'desc').limit(1).get().then((res) => {
+    const plan = res.data && res.data[0]
+    if (!plan) return { code: 404, data: null, message: 'no_active_plan' }
+
+    const metrics = calculatePlanMetrics({ ...plan, activityLevel }, plan.currentWeightKg)
+    const updates = {
+      activityLevel,
+      ...energyMetricsOnly(metrics),
+      updatedAt: db.serverDate(),
+    }
+    return db.collection('plans').doc(plan._id).update({ data: updates }).then(async () => {
+      const updated = { ...plan, ...updates, id: plan._id }
+      await refreshCurrentDailyPlanSnapshot(openid, updated)
       delete updated.openid
       delete updated._id
       return { code: 0, data: { plan: updated }, message: 'ok' }
@@ -2043,6 +2085,7 @@ async function invokeWithTrustedOpenid(event = {}, openid = '') {
       getCurrentPlan,
       updatePlanGoal,
       updatePlanMacros,
+      updatePlanActivity,
       getDailySummary,
       createMeal,
       updateMeal,
@@ -2100,6 +2143,7 @@ exports.__test = {
   calculateEnergyTargets,
   calculateExerciseEnergy,
   calculatePlanMetrics,
+  updatePlanActivity,
   canonicalizeFingerprintValue,
   countCompleteMealSlots,
   detectImageMimeType,

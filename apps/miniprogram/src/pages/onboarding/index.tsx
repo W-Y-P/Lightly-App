@@ -2,17 +2,10 @@ import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, Input, Picker } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { createPlan, ensureAuthReady } from '../../api/client'
+import { ACTIVITY_LEVELS } from '../../utils/activityLevels'
 import './index.scss'
 
 const TOTAL_STEPS = 4
-
-const ACTIVITY_LEVELS = [
-  { value: 1.2, label: '久坐为主', desc: '工作生活多为坐姿，日常走动很少' },
-  { value: 1.3, label: '少量走动', desc: '日常偶尔步行、站立或做家务' },
-  { value: 1.45, label: '经常走动', desc: '每天有较多步行或站立', recommended: true },
-  { value: 1.6, label: '日常活跃', desc: '工作生活走动较多，含轻体力活动' },
-  { value: 1.75, label: '体力活动多', desc: '日常以体力劳动或持续走动为主' },
-]
 
 const WEEKLY_LOSS_OPTIONS = [
   { value: '0.25', label: '0.25 kg', desc: '轻缓' },
@@ -404,7 +397,7 @@ export default function OnboardingPage() {
                   <View className='onboard-radio'><View className='onboard-radio-dot' /></View>
                   <View className='onboard-choice-copy'>
                     <Text className='onboard-choice-title'>{option.label}</Text>
-                    <Text className='onboard-choice-desc'>{option.desc}</Text>
+                    <Text className='onboard-choice-desc'>{option.description}</Text>
                   </View>
                   {option.recommended ? <Text className='onboard-recommended'>默认</Text> : null}
                 </View>

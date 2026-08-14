@@ -291,6 +291,12 @@ test('TDEE uses the non-exercise activity baseline; deficit credits 100 percent 
   assert.equal(summary.remainingIntakeKcal, 140)
 })
 
+test('activity updates reject invalid multipliers before touching the database', async () => {
+  assert.equal((await helpers.updatePlanActivity({ activityLevel: 1.19 }, 'user-a')).code, 400)
+  assert.equal((await helpers.updatePlanActivity({ activityLevel: 1.76 }, 'user-a')).code, 400)
+  assert.equal((await helpers.updatePlanActivity({}, 'user-a')).code, 400)
+})
+
 test('goal recalculation exposes energy fields only and leaves custom macros untouched', () => {
   const plan = {
     sex: 'female',

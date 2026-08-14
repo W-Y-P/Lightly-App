@@ -14,16 +14,25 @@ export function photoPickerErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error || '')
 }
 
+function photoPickerErrorCode(error: unknown): number | null {
+  if (!error || typeof error !== 'object') return null
+  const value = (error as { errNo?: unknown; errno?: unknown }).errNo
+    ?? (error as { errno?: unknown }).errno
+  const code = Number(value)
+  return Number.isFinite(code) ? code : null
+}
+
 export function isPhotoPickerCancel(error: unknown): boolean {
   return /cancel|取消/i.test(photoPickerErrorMessage(error))
 }
 
 export function describePhotoPickerError(error: unknown, source: PhotoSource): string {
   const message = photoPickerErrorMessage(error)
-  if (/scope is not declared|privacy agreement|隐私.*声明|未声明/i.test(message)) {
+  const code = photoPickerErrorCode(error)
+  if (code === 10202 || /scope is not declared|privacy agreement|隐私.*声明|未声明/i.test(message)) {
     return '请先在微信公众平台的用户隐私保护指引中声明“选中的照片或视频”用途'
   }
-  if (/auth deny|permission|authorize|denied|拒绝|权限/i.test(message)) {
+  if (code === 10201 || /auth deny|permission|authorize|denied|拒绝|权限/i.test(message)) {
     return source === 'camera'
       ? '没有相机权限，请在微信设置中允许使用相机后重试'
       : '没有相册权限，请在系统设置中允许微信访问照片后重试'
@@ -37,7 +46,8 @@ export function describePhotoPickerError(error: unknown, source: PhotoSource): s
 }
 
 export function isPhotoPickerError(error: unknown): boolean {
-  return /chooseMedia|chooseImage|permission|authorize|auth deny|not support|invalid api|privacy|scope/i.test(photoPickerErrorMessage(error))
+  return photoPickerErrorCode(error) != null
+    || /chooseMedia|chooseImage|permission|authorize|auth deny|not support|invalid api|privacy|scope/i.test(photoPickerErrorMessage(error))
 }
 
 export function detectPhotoMimeType(imageBase64: string): string | null {

@@ -55,6 +55,7 @@ interface ExerciseRow {
 }
 
 type SheetView = 'meal' | 'exercise' | 'weight' | 'photo' | 'slot'
+type PhotoPhase = 'idle' | 'opening-camera' | 'opening-album' | 'recognizing'
 
 const MEAL_SLOTS: Array<{ key: MealSlot; label: string; note: string }> = [
   { key: 'breakfast', label: '早餐', note: '一天的第一餐' },
@@ -164,6 +165,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
   const [photoRows, setPhotoRows] = useState<MealRow[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [photoPhase, setPhotoPhase] = useState<PhotoPhase>('idle')
 
   const currentWeight = today.currentWeight > 0 ? today.currentWeight : 70
 
@@ -174,6 +176,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
     void Taro.hideTabBar({ animation: false }).catch(() => {})
     setError('')
     setBusy(false)
+    setPhotoPhase('idle')
     if (action.type === 'meal') {
       setView('meal')
       setMealSlot(action.slot)
@@ -220,6 +223,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
   }
 
   async function recognizePhoto(source: PhotoSource, chooseSlotAfter: boolean) {
+    if (busy) return
     setError('')
     try {
       if (!Taro.getStorageSync('aiPhotoPrivacyConsent')) {
@@ -236,10 +240,13 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
         Taro.setStorageSync('aiPhotoPrivacyConsent', true)
       }
 
+      setBusy(true)
+      setPhotoPhase(source === 'camera' ? 'opening-camera' : 'opening-album')
+      setView('photo')
       const chosenPhoto = await pickSinglePhoto(source)
       const originalPath = chosenPhoto.tempFilePath
       if (!originalPath) throw new Error('image_missing')
-      setBusy(true)
+      setPhotoPhase('recognizing')
       setView('photo')
 
       let imagePath = originalPath
@@ -316,6 +323,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
               : '照片识别失败，请重试或改用文字解析'
       console.error('[TodayPhoto] photo recognition failed:', message)
       setError(friendly)
+      setPhotoPhase('idle')
       setView(chooseSlotAfter ? 'photo' : 'meal')
     } finally {
       setBusy(false)
@@ -508,6 +516,21 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
   if (!action) return null
 
   const slotLabel = MEAL_SLOTS.find((slot) => slot.key === mealSlot)?.label ?? '餐食'
+  const isOpeningPhoto = photoPhase === 'opening-camera' || photoPhase === 'opening-album'
+  const photoTitle = photoPhase === 'opening-camera'
+    ? '正在打开相机'
+    : photoPhase === 'opening-album'
+      ? '正在打开相册'
+      : photoPhase === 'recognizing'
+        ? '正在识别食物和份量'
+        : error
+          ? '没有完成识别'
+          : '选择照片来源'
+  const photoDescription = isOpeningPhoto
+    ? '请在微信弹出的系统页面中完成选择'
+    : photoPhase === 'recognizing'
+      ? '通常需要几秒，照片不会保存在本服务中'
+      : error || '拍摄当前餐食，或从相册选择已有照片'
 
   return (
     <View className='today-record-layer' catchMove>
@@ -517,7 +540,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
           <View>
             <Text className='today-record-kicker'>今天</Text>
             <Text className='today-record-title'>
-              {view === 'meal' ? `记录${slotLabel}` : view === 'exercise' ? '记录运动' : view === 'weight' ? '体重打卡' : view === 'slot' ? '记录到哪一餐？' : busy ? 'AI 正在识别' : 'AI 拍照识别'}
+              {view === 'meal' ? `记录${slotLabel}` : view === 'exercise' ? '记录运动' : view === 'weight' ? '体重打卡' : view === 'slot' ? '记录到哪一餐？' : isOpeningPhoto ? '选择照片' : busy ? 'AI 正在识别' : 'AI 拍照识别'}
             </Text>
           </View>
           <View className={`today-record-close ${busy ? 'today-record-control--disabled' : ''}`} onClick={close}>
@@ -530,20 +553,20 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
             <View className={`today-photo-pulse ${busy ? 'today-photo-pulse--active' : ''}`}>
               <View className='today-photo-lens' />
             </View>
-            <Text className='today-photo-title'>{busy ? '正在识别食物和份量' : error ? '没有完成识别' : '选择照片来源'}</Text>
-            <Text className='today-photo-desc'>{busy ? '通常需要几秒，照片不会保存在本服务中' : error || '拍摄当前餐食，或从相册选择已有照片'}</Text>
+            <Text className='today-photo-title'>{photoTitle}</Text>
+            <Text className='today-photo-desc'>{photoDescription}</Text>
             {!busy && (
               <View className='today-photo-actions'>
-                <View className='today-photo-source today-photo-source--camera' onClick={() => void recognizePhoto('camera', true)}>
+                <Button className='today-photo-source today-photo-source--camera' onClick={() => void recognizePhoto('camera', true)}>
                   <View className='today-photo-source-icon'><View className='today-photo-source-lens' /></View>
                   <Text className='today-photo-source-title'>拍照</Text>
                   <Text className='today-photo-source-note'>打开后置相机</Text>
-                </View>
-                <View className='today-photo-source today-photo-source--album' onClick={() => void recognizePhoto('album', true)}>
+                </Button>
+                <Button className='today-photo-source today-photo-source--album' onClick={() => void recognizePhoto('album', true)}>
                   <View className='today-photo-source-icon today-photo-source-icon--album'><Text>▧</Text></View>
                   <Text className='today-photo-source-title'>相册</Text>
                   <Text className='today-photo-source-note'>选择已有照片</Text>
-                </View>
+                </Button>
               </View>
             )}
           </View>

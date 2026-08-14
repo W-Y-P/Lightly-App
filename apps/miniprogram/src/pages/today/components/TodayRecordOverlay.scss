@@ -99,7 +99,8 @@
 .today-photo-title { margin-top: 24rpx; color: #17221b; font-size: 27rpx; font-weight: 710; }
 .today-photo-desc { max-width: 520rpx; margin-top: 10rpx; color: #748078; font-size: 21rpx; line-height: 1.5; text-align: center; }
 .today-photo-actions { display: flex; width: 100%; max-width: 560rpx; gap: 16rpx; margin-top: 28rpx; }
-.today-photo-source { display: flex; min-height: 170rpx; flex: 1; flex-direction: column; align-items: center; justify-content: center; color: #fff; background: #168a5b; border-radius: 18rpx; box-shadow: 0 8rpx 20rpx rgba(22, 138, 91, 0.14); }
+.today-photo-source { display: flex; min-height: 170rpx; flex: 1; flex-direction: column; align-items: center; justify-content: center; margin: 0; padding: 0; color: #fff; font-size: inherit; line-height: 1.2; background: #168a5b; border: 0; border-radius: 18rpx; box-shadow: 0 8rpx 20rpx rgba(22, 138, 91, 0.14); }
+.today-photo-source::after { border: 0; }
 .today-photo-source--album { color: #285e76; background: #edf7fb; border: 1rpx solid #c6e0ea; box-shadow: none; }
 .today-photo-source-icon { position: relative; display: flex; width: 48rpx; height: 42rpx; align-items: center; justify-content: center; margin-bottom: 10rpx; border: 3rpx solid currentColor; border-radius: 9rpx; }
 .today-photo-source-lens { width: 16rpx; height: 16rpx; border: 4rpx solid currentColor; border-radius: 50%; }

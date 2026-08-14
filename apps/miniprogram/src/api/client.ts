@@ -404,6 +404,11 @@ export async function updatePlanMacros(body: UpdatePlanMacrosBody) {
   return backendRequest<{ plan: PlanRecord }>('updatePlanMacros', body, 'PATCH', '/plans/current/macros', body)
 }
 
+export async function updatePlanActivity(activityLevel: number) {
+  const body = { activityLevel }
+  return backendRequest<{ plan: PlanRecord }>('updatePlanActivity', body, 'PATCH', '/plans/current/activity', body)
+}
+
 // ── Daily summary ──
 export interface DailySummaryResponse {
   date: string

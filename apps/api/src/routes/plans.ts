@@ -39,6 +39,10 @@ const macrosPatchSchema = z.object({
   fatMaxG: z.number().int().min(0).optional(),
 });
 
+const activityPatchSchema = z.object({
+  activityLevel: z.number().min(1.2).max(1.75),
+});
+
 export async function planRoutes(app: FastifyInstance) {
   // ── POST /plans ─────────────────────────────────────────────────
   app.post("/plans", { preHandler: [authGuard] }, async (request, reply) => {
@@ -169,6 +173,53 @@ export async function planRoutes(app: FastifyInstance) {
         carbMaxG: parsed.data.carbMaxG ?? plan.carbMaxG,
         fatMinG: parsed.data.fatMinG ?? plan.fatMinG,
         fatMaxG: parsed.data.fatMaxG ?? plan.fatMaxG,
+      },
+    });
+
+    return { plan: updated };
+  });
+
+  // ── PATCH /plans/current/activity ────────────────────────────────
+  app.patch("/plans/current/activity", { preHandler: [authGuard] }, async (request, reply) => {
+    const parsed = activityPatchSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "invalid_activity_input", issues: parsed.error.flatten() });
+    }
+
+    const plan = await prisma.plan.findFirst({
+      where: { userId: request.userId!, activeTo: null },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!plan) {
+      return reply.code(404).send({ error: "no_active_plan" });
+    }
+
+    const bmrKcal = calculateBmr({
+      sex: plan.sex as "male" | "female",
+      age: plan.age,
+      heightCm: plan.heightCm,
+      currentWeightKg: plan.currentWeightKg,
+    });
+    const tdeeKcal = Math.round(bmrKcal * parsed.data.activityLevel);
+    const requestedDailyDeficitKcal = plan.weeklyLossKg || plan.targetDate
+      ? calculateDailyDeficit({
+        currentWeightKg: plan.currentWeightKg,
+        targetWeightKg: plan.targetWeightKg,
+        weeklyLossKg: plan.weeklyLossKg ?? undefined,
+        targetDate: plan.targetDate?.toISOString(),
+      })
+      : plan.dailyDeficitTargetKcal;
+    const recommendedIntakeKcal = Math.max(1200, tdeeKcal - requestedDailyDeficitKcal);
+    const dailyDeficitTargetKcal = Math.max(0, tdeeKcal - recommendedIntakeKcal);
+
+    const updated = await prisma.plan.update({
+      where: { id: plan.id },
+      data: {
+        activityLevel: parsed.data.activityLevel,
+        bmrKcal,
+        tdeeKcal,
+        dailyDeficitTargetKcal,
+        recommendedIntakeKcal,
       },
     });
 
