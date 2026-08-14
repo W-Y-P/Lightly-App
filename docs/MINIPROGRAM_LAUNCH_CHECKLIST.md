@@ -96,22 +96,9 @@ downloadFile 域名：https://cdn.example.com
 
 ### 6.1 相机和相册
 
-在 `app.json` 中声明：
+本项目使用 `chooseImage` 让用户主动拍摄或选择餐食照片，不使用 `<camera>` 组件，也不向系统相册保存图片。因此不要在 `app.json` 中添加 `scope.camera`、`scope.writePhotosAlbum` 或 `requiredPrivateInfos`。
 
-```json
-{
-  "permission": {
-    "scope.camera": {
-      "desc": "用于拍摄食物照片进行识别"
-    },
-    "scope.writePhotosAlbum": {
-      "desc": "用于保存识别结果截图"
-    }
-  }
-}
-```
-
-首次使用时弹出授权请求，用户拒绝后仍可使用文字录入和手动记录。
+必须在微信公众平台“设置与开发 > 基本设置 > 服务内容声明 > 用户隐私保护指引”中声明“选中的照片或视频”，并披露照片会发送给第三方 AI 服务完成本次识别。声明生效后重新上传开发版或体验版；用户拒绝授权后仍可使用文字录入和手动记录。
 
 ### 6.2 健康体重数据
 

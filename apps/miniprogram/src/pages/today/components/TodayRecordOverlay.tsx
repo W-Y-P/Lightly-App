@@ -225,12 +225,14 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
   async function recognizePhoto(source: PhotoSource, chooseSlotAfter: boolean) {
     if (busy) return
     setError('')
+    let pickerStarted = false
+    let photoSelected = false
     try {
       if (!Taro.getStorageSync('aiPhotoPrivacyConsent')) {
         const consent = await Taro.showModal({
           title: '照片识别说明',
           content: '照片会发送给小米 MiMo API 完成本次食物识别，本服务不保存原图。识别结果会先交给你确认，再写入饮食记录。',
-          confirmText: '同意并继续',
+          confirmText: '同意继续',
           cancelText: '暂不使用',
         })
         if (!consent.confirm) {
@@ -243,7 +245,9 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       setBusy(true)
       setPhotoPhase(source === 'camera' ? 'opening-camera' : 'opening-album')
       setView('photo')
+      pickerStarted = true
       const chosenPhoto = await pickSinglePhoto(source)
+      photoSelected = true
       const originalPath = chosenPhoto.tempFilePath
       if (!originalPath) throw new Error('image_missing')
       setPhotoPhase('recognizing')
@@ -318,10 +322,14 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
           ? '图片仍大于 1MB，请裁剪后重试'
           : /image_missing/.test(message)
             ? '没有取得照片，请重新选择'
-            : isPhotoPickerError(photoError)
+            : pickerStarted && (!photoSelected || isPhotoPickerError(photoError))
               ? describePhotoPickerError(photoError, source)
-              : '照片识别失败，请重试或改用文字解析'
-      console.error('[TodayPhoto] photo recognition failed:', message)
+              : /showModal/.test(message)
+                ? '照片使用说明未能打开，请重试'
+                : '照片识别失败，请重试或改用文字解析'
+      console.error(photoSelected
+        ? '[TodayPhoto] image processing or recognition failed:'
+        : '[TodayPhoto] native photo picker failed:', message, photoError)
       setError(friendly)
       setPhotoPhase('idle')
       setView(chooseSlotAfter ? 'photo' : 'meal')

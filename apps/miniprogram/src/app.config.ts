@@ -1,4 +1,5 @@
 export default defineAppConfig({
+  __usePrivacyCheck__: true,
   pages: [
     'pages/today/index',
     'pages/record/index',

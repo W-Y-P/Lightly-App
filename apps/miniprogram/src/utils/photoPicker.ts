@@ -7,6 +7,23 @@ export interface PickedPhoto {
   fileType?: string
 }
 
+interface NativePhotoApi {
+  requirePrivacyAuthorize?: (options: {
+    success: () => void
+    fail: (error: unknown) => void
+  }) => void
+  chooseImage?: (options: {
+    count: number
+    sourceType: PhotoSource[]
+    sizeType: Array<'compressed'>
+    success: (result: {
+      tempFilePaths?: string[]
+      tempFiles?: Array<{ path?: string }>
+    }) => void
+    fail: (error: unknown) => void
+  }) => void
+}
+
 export function photoPickerErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'errMsg' in error) {
     return String((error as { errMsg?: unknown }).errMsg || '')
@@ -29,10 +46,10 @@ export function isPhotoPickerCancel(error: unknown): boolean {
 export function describePhotoPickerError(error: unknown, source: PhotoSource): string {
   const message = photoPickerErrorMessage(error)
   const code = photoPickerErrorCode(error)
-  if (code === 10202 || /scope is not declared|privacy agreement|隐私.*声明|未声明/i.test(message)) {
+  if (code === 112 || /scope is not declared|privacy contract not found|privacy agreement|api scope.*not declared|appid privacy api banned|隐私.*声明|未声明/i.test(message)) {
     return '请先在微信公众平台的用户隐私保护指引中声明“选中的照片或视频”用途'
   }
-  if (code === 10201 || /auth deny|permission|authorize|denied|拒绝|权限/i.test(message)) {
+  if (code === 103 || code === 104 || /auth deny|permission.*not authorized|authorize.*fail|denied|拒绝|权限/i.test(message)) {
     return source === 'camera'
       ? '没有相机权限，请在微信设置中允许使用相机后重试'
       : '没有相册权限，请在系统设置中允许微信访问照片后重试'
@@ -46,8 +63,7 @@ export function describePhotoPickerError(error: unknown, source: PhotoSource): s
 }
 
 export function isPhotoPickerError(error: unknown): boolean {
-  return photoPickerErrorCode(error) != null
-    || /chooseMedia|chooseImage|permission|authorize|auth deny|not support|invalid api|privacy|scope/i.test(photoPickerErrorMessage(error))
+  return /chooseMedia|chooseImage|requirePrivacyAuthorize|permission|authorize|auth deny|not support|invalid api|privacy|scope/i.test(photoPickerErrorMessage(error))
 }
 
 export function detectPhotoMimeType(imageBase64: string): string | null {
@@ -66,11 +82,45 @@ export function detectPhotoMimeType(imageBase64: string): string | null {
   return null
 }
 
-function canFallbackToChooseImage(error: unknown): boolean {
-  return /not support|not found|not implemented|invalid api|system.*support|不支持/i.test(photoPickerErrorMessage(error))
+function getNativePhotoApi(): NativePhotoApi | null {
+  if (typeof wx === 'undefined') return null
+  return wx as unknown as NativePhotoApi
 }
 
-async function chooseWithLegacyApi(source: PhotoSource): Promise<PickedPhoto> {
+async function requirePhotoPrivacyAuthorization(): Promise<void> {
+  const nativeApi = getNativePhotoApi()
+  if (!nativeApi?.requirePrivacyAuthorize) return
+
+  await new Promise<void>((resolve, reject) => {
+    nativeApi.requirePrivacyAuthorize?.({
+      success: resolve,
+      fail: reject,
+    })
+  })
+}
+
+async function chooseWithImageApi(source: PhotoSource): Promise<PickedPhoto> {
+  const nativeApi = getNativePhotoApi()
+  if (nativeApi?.chooseImage) {
+    return new Promise<PickedPhoto>((resolve, reject) => {
+      nativeApi.chooseImage?.({
+        count: 1,
+        sourceType: [source],
+        sizeType: ['compressed'],
+        success: (result) => {
+          const first = result.tempFiles?.[0]
+          const tempFilePath = first?.path || result.tempFilePaths?.[0] || ''
+          if (!tempFilePath) {
+            reject(new Error('chooseImage:fail no temp file'))
+            return
+          }
+          resolve({ tempFilePath, fileType: 'image' })
+        },
+        fail: reject,
+      })
+    })
+  }
+
   const result = await Taro.chooseImage({
     count: 1,
     sourceType: [source],
@@ -78,27 +128,11 @@ async function chooseWithLegacyApi(source: PhotoSource): Promise<PickedPhoto> {
   })
   const first = result.tempFiles?.[0]
   const tempFilePath = first?.path || result.tempFilePaths?.[0] || ''
+  if (!tempFilePath) throw new Error('chooseImage:fail no temp file')
   return { tempFilePath, fileType: 'image' }
 }
 
 export async function pickSinglePhoto(source: PhotoSource): Promise<PickedPhoto> {
-  if (Taro.canIUse('chooseMedia')) {
-    try {
-      const result = await Taro.chooseMedia({
-        count: 1,
-        mediaType: ['image'],
-        sourceType: [source],
-        sizeType: ['compressed'],
-        camera: 'back',
-      })
-      const first = result.tempFiles?.[0]
-      return {
-        tempFilePath: first?.tempFilePath || '',
-        fileType: first?.fileType || result.type,
-      }
-    } catch (error) {
-      if (isPhotoPickerCancel(error) || !canFallbackToChooseImage(error)) throw error
-    }
-  }
-  return chooseWithLegacyApi(source)
+  await requirePhotoPrivacyAuthorization()
+  return chooseWithImageApi(source)
 }

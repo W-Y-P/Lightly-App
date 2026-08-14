@@ -643,19 +643,23 @@ export default function RecordPage() {
   const handleMealPhoto = async (source: PhotoSource, initialUsePoint = false) => {
     if (mealLoading) return
     setMealPhotoError('')
+    let pickerStarted = false
+    let photoSelected = false
     try {
       if (!Taro.getStorageSync('aiPhotoPrivacyConsent')) {
         const consent = await Taro.showModal({
           title: '照片识别说明',
           content: '所选照片会发送给第三方 AI 服务小米 MiMo API 进行本次识别。本服务不保存原图，识别结果会先由你确认，再写入饮食记录。',
           cancelText: '暂不使用',
-          confirmText: '同意并继续',
+          confirmText: '同意继续',
         })
         if (!consent.confirm) return
         Taro.setStorageSync('aiPhotoPrivacyConsent', true)
       }
       setMealLoading(true)
+      pickerStarted = true
       const chosenFile = await pickSinglePhoto(source)
+      photoSelected = true
       if (!chosenFile?.tempFilePath) return
 
       let uploadPath = chosenFile.tempFilePath
@@ -735,8 +739,14 @@ export default function RecordPage() {
     } catch (err: unknown) {
       if (!isPhotoPickerCancel(err)) {
         const msg = photoPickerErrorMessage(err)
-        const message = isPhotoPickerError(err) ? describePhotoPickerError(err, source) : '图片处理失败，请重试'
-        console.error('[RecordPhoto] photo recognition failed:', msg)
+        const message = pickerStarted && (!photoSelected || isPhotoPickerError(err))
+          ? describePhotoPickerError(err, source)
+          : /showModal/.test(msg)
+            ? '照片使用说明未能打开，请重试'
+            : '图片处理失败，请重试'
+        console.error(photoSelected
+          ? '[RecordPhoto] image processing or recognition failed:'
+          : '[RecordPhoto] native photo picker failed:', msg, err)
         setMealPhotoError(`${message}。已填写的食物内容会保留。`)
         Taro.showToast({ title: message, icon: 'none', duration: 2500 })
       }
