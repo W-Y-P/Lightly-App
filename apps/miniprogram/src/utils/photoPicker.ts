@@ -47,7 +47,7 @@ export function describePhotoPickerError(error: unknown, source: PhotoSource): s
   const message = photoPickerErrorMessage(error)
   const code = photoPickerErrorCode(error)
   if (code === 112 || /scope is not declared|privacy contract not found|privacy agreement|api scope.*not declared|appid privacy api banned|隐私.*声明|未声明/i.test(message)) {
-    return '请先在微信公众平台的用户隐私保护指引中声明“选中的照片或视频”用途'
+    return '微信当前生效的隐私指引尚未包含“选中的照片或视频”（错误码 112），请等待指引审核通过后重新预览'
   }
   if (code === 103 || code === 104 || /auth deny|permission.*not authorized|authorize.*fail|denied|拒绝|权限/i.test(message)) {
     return source === 'camera'
