@@ -127,9 +127,13 @@ export default function TodayPage() {
   const [partialFailures, setPartialFailures] = useState<string[]>([])
   const [hasCompleteMeals, setHasCompleteMeals] = useState(false)
   const [recordAction, setRecordAction] = useState<TodayRecordAction | null>(null)
+  const recordActionRef = useRef<TodayRecordAction | null>(null)
   const loadSequence = useRef(0)
 
   useDidShow(() => {
+    // Returning from the native camera/album also triggers didShow. Reloading here
+    // would replace the ready page and unmount the pending recognition overlay.
+    if (recordActionRef.current) return
     loadFromApi()
   })
 
@@ -139,11 +143,19 @@ export default function TodayPage() {
     // Keep the overlay mounted so the selected photo can finish recognition on return.
   })
 
-  const openMeal = (slot: MealSlot) => setRecordAction({ type: 'meal', slot })
-  const openMealPicker = () => setRecordAction({ type: 'mealPicker' })
-  const openExercise = () => setRecordAction({ type: 'exercise' })
-  const openWeight = () => setRecordAction({ type: 'weight' })
-  const openPhoto = () => setRecordAction({ type: 'photo' })
+  const showRecordAction = (action: TodayRecordAction) => {
+    recordActionRef.current = action
+    setRecordAction(action)
+  }
+  const closeRecordAction = () => {
+    recordActionRef.current = null
+    setRecordAction(null)
+  }
+  const openMeal = (slot: MealSlot) => showRecordAction({ type: 'meal', slot })
+  const openMealPicker = () => showRecordAction({ type: 'mealPicker' })
+  const openExercise = () => showRecordAction({ type: 'exercise' })
+  const openWeight = () => showRecordAction({ type: 'weight' })
+  const openPhoto = () => showRecordAction({ type: 'photo' })
 
   async function loadFromApi() {
     const sequence = ++loadSequence.current
@@ -449,7 +461,7 @@ export default function TodayPage() {
       </View>
       <TodayRecordOverlay
         action={recordAction}
-        onClose={() => setRecordAction(null)}
+        onClose={closeRecordAction}
         onSaved={loadFromApi}
       />
     </View>

@@ -11,6 +11,7 @@ const _ = db.command
 const $ = db.command.aggregate
 const MIN_DAILY_INTAKE_KCAL = 1200
 const MAX_PHOTO_BYTES = 1024 * 1024
+const PHOTO_FREE_DAILY = 5
 const PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const MEAL_TYPES = new Set(['breakfast', 'lunch', 'dinner', 'other', 'drink'])
 const COMPLETE_MEAL_TYPES = new Set(['breakfast', 'lunch', 'dinner'])
@@ -22,6 +23,7 @@ const EXERCISE_CREDIT_RATIO = 0.7
 const AI_REQUEST_TIMEOUT_MS = 24000
 const AI_TEXT_DAILY_LIMIT = 30
 const PHOTO_RESERVATION_TIMEOUT_MS = 60000
+const AI_HTTPS_AGENT = new https.Agent({ keepAlive: true, maxSockets: 8 })
 const DAILY_PLAN_SNAPSHOT_COLLECTION = 'dailyPlanSnapshots'
 const ACCOUNT_COLLECTIONS = Object.freeze([
   'plans',
@@ -385,7 +387,7 @@ function ensureUser(openid) {
       createdAt: db.serverDate(),
       pointBalance: 0,
       photoQuota: {
-        freeDaily: 1,
+        freeDaily: PHOTO_FREE_DAILY,
         lastDate: '',
         freeUsedToday: 0,
       },
@@ -395,12 +397,18 @@ function ensureUser(openid) {
   })
 }
 
+function resolvePhotoFreeDaily(quota) {
+  const configuredDaily = Number(quota && quota.freeDaily)
+  return Number.isFinite(configuredDaily)
+    ? Math.max(PHOTO_FREE_DAILY, Math.floor(configuredDaily))
+    : PHOTO_FREE_DAILY
+}
+
 function formatEntitlementResponse(user, today, committedTotalToday = 0) {
-  const quota = user.photoQuota || { freeDaily: 1, lastDate: '', freeUsedToday: 0 }
+  const quota = user.photoQuota || { freeDaily: PHOTO_FREE_DAILY, lastDate: '', freeUsedToday: 0 }
   const sameDay = quota.lastDate === today
   const freeUsedToday = sameDay ? (quota.freeUsedToday || 0) : 0
-  const configuredDaily = Number(quota.freeDaily)
-  const freeDaily = Number.isFinite(configuredDaily) && configuredDaily >= 0 ? Math.floor(configuredDaily) : 1
+  const freeDaily = resolvePhotoFreeDaily(quota)
   return {
     code: 0,
     data: {
@@ -1513,7 +1521,7 @@ function buildMiMoChatBody({ description, imageBase64, mimeType }) {
       { role: 'user', content: imageBase64 ? userContent : userText },
     ],
     response_format: { type: 'json_object' },
-    max_completion_tokens: 1600,
+    max_completion_tokens: imageBase64 ? 1200 : 900,
     stream: false,
   }
 }
@@ -1554,6 +1562,7 @@ function callMiMoChat(requestBody) {
     hostname: url.hostname,
     path: `${url.pathname}${url.search}`,
     port: url.port || (url.protocol === 'https:' ? 443 : 80),
+    agent: AI_HTTPS_AGENT,
     headers: {
       'api-key': config.apiKey,
       'Content-Type': 'application/json',
@@ -1686,8 +1695,7 @@ function validatePhotoInput(payload) {
 
 function planPhotoQuotaReservation(user, date, usePoint) {
   const quota = user.photoQuota || {}
-  const configuredDaily = Number(quota.freeDaily)
-  const freeDaily = Number.isFinite(configuredDaily) && configuredDaily >= 0 ? Math.floor(configuredDaily) : 1
+  const freeDaily = resolvePhotoFreeDaily(quota)
   const freeUsedToday = quota.lastDate === date ? Math.max(0, Math.floor(Number(quota.freeUsedToday) || 0)) : 0
   const pointBalance = Math.max(0, Math.floor(Number(user.pointBalance) || 0))
 
@@ -1725,11 +1733,12 @@ function planPhotoQuotaRollback(user, date, chargeMode) {
   if (chargeMode === 'point') {
     return { pointBalance: Math.max(0, Math.floor(Number(user.pointBalance) || 0)) + 1 }
   }
-  const quota = user.photoQuota || { freeDaily: 1, lastDate: date, freeUsedToday: 0 }
+  const quota = user.photoQuota || { freeDaily: PHOTO_FREE_DAILY, lastDate: date, freeUsedToday: 0 }
   if (quota.lastDate !== date) return {}
   return {
     photoQuota: {
       ...quota,
+      freeDaily: resolvePhotoFreeDaily(quota),
       freeUsedToday: Math.max(0, Math.floor(Number(quota.freeUsedToday) || 0) - 1),
     },
   }
@@ -2135,6 +2144,7 @@ exports.__test = {
   AI_TEXT_DAILY_LIMIT,
   DAILY_ACTIVITY_BASELINE_MULTIPLIER,
   PHOTO_RESERVATION_TIMEOUT_MS,
+  PHOTO_FREE_DAILY,
   awardDailyStarIfEligible,
   buildMiMoChatBody,
   buildDailyPlanSnapshot,

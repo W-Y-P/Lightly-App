@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Input, Picker, ScrollView, Text, Textarea, View } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import {
@@ -7,6 +7,9 @@ import {
   createExercise,
   createMeal,
   createWeight,
+  deleteMeal,
+  getMeals,
+  updateMeal,
   type CreateMealBody,
   type MealItemInput,
 } from '../../../api/client'
@@ -159,6 +162,8 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
   const [mealSlot, setMealSlot] = useState<MealSlot>('breakfast')
   const [mealRows, setMealRows] = useState<MealRow[]>([emptyMealRow()])
   const [mealText, setMealText] = useState('')
+  const [editingMealIds, setEditingMealIds] = useState<string[]>([])
+  const [mealSourceReady, setMealSourceReady] = useState(true)
   const [exerciseRows, setExerciseRows] = useState<ExerciseRow[]>([])
   const [weightValue, setWeightValue] = useState('')
   const [weighingContext, setWeighingContext] = useState<'morning' | 'evening'>('morning')
@@ -166,6 +171,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [photoPhase, setPhotoPhase] = useState<PhotoPhase>('idle')
+  const mealLoadSequence = useRef(0)
 
   const currentWeight = today.currentWeight > 0 ? today.currentWeight : 70
 
@@ -178,23 +184,29 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
     setBusy(false)
     setPhotoPhase('idle')
     if (action.type === 'meal') {
-      setView('meal')
-      setMealSlot(action.slot)
-      setMealRows([emptyMealRow()])
-      setMealText('')
+      void loadMealSlot(action.slot, [])
     } else if (action.type === 'mealPicker') {
+      mealLoadSequence.current += 1
       setPhotoRows([])
+      setMealSourceReady(true)
       setView('slot')
     } else if (action.type === 'exercise') {
+      mealLoadSequence.current += 1
       setView('exercise')
       setExerciseRows([newExerciseRow(currentWeight)])
     } else if (action.type === 'weight') {
+      mealLoadSequence.current += 1
       setView('weight')
       setWeightValue(today.currentWeight > 0 ? today.currentWeight.toFixed(1) : '')
       setWeighingContext('morning')
     } else {
+      mealLoadSequence.current += 1
       setPhotoRows([])
+      setMealSourceReady(true)
       setView('photo')
+    }
+    return () => {
+      mealLoadSequence.current += 1
     }
   }, [action])
 
@@ -220,6 +232,35 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       const hasOnlyEmpty = previous.length === 1 && !previous[0].foodName && !previous[0].kcal
       return hasOnlyEmpty ? rows : [...previous, ...rows]
     })
+  }
+
+  async function loadMealSlot(slot: MealSlot, appendedRows: MealRow[]) {
+    const sequence = ++mealLoadSequence.current
+    setView('meal')
+    setMealSlot(slot)
+    setMealText('')
+    setEditingMealIds([])
+    setMealRows(appendedRows.length ? appendedRows : [emptyMealRow()])
+    setMealSourceReady(false)
+    setBusy(true)
+    setError('')
+    try {
+      const result = await getMeals(localDateString())
+      if (sequence !== mealLoadSequence.current) return
+      if (!result.ok) throw new Error(result.error)
+      const existingMeals = result.data.meals.filter((meal) => meal.mealSlot === slot)
+      const existingRows = existingMeals.flatMap((meal) => meal.items.map(mealItemToRow))
+      setEditingMealIds(existingMeals.map((meal) => meal.id))
+      setMealRows(existingRows.length || appendedRows.length
+        ? [...existingRows, ...appendedRows]
+        : [emptyMealRow()])
+      setMealSourceReady(true)
+    } catch {
+      if (sequence !== mealLoadSequence.current) return
+      setError('已有记录暂时未能读取，请稍后重试，避免重复保存')
+    } finally {
+      if (sequence === mealLoadSequence.current) setBusy(false)
+    }
   }
 
   async function recognizePhoto(source: PhotoSource, chooseSlotAfter: boolean) {
@@ -343,11 +384,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
   }
 
   const chooseRecognizedMealSlot = (slot: MealSlot) => {
-    setMealSlot(slot)
-    setMealRows(photoRows.length ? photoRows : [emptyMealRow()])
-    setMealText('')
-    setError('')
-    setView('meal')
+    void loadMealSlot(slot, photoRows)
   }
 
   const updateMealRow = (index: number, field: keyof MealRow, value: string) => {
@@ -402,6 +439,10 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
 
   const saveMeal = async () => {
     if (busy) return
+    if (!mealSourceReady) {
+      setError('请等待已有记录读取完成后再保存')
+      return
+    }
     const populatedRows = mealRows.filter((row) => row.foodName.trim() || row.quantityG || row.kcal)
     if (!populatedRows.length) {
       setError('请至少填写一种食物')
@@ -411,16 +452,6 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       if (!row.foodName.trim()) { setError('每一行都需要填写食物名称'); return }
       if (!(Number(row.quantityG) > 0)) { setError(`请填写“${row.foodName}”的克数`); return }
       if (!Number.isFinite(Number(row.kcal)) || Number(row.kcal) < 0) { setError(`请填写“${row.foodName}”的热量`); return }
-    }
-    const existing = today.meals.find((meal) => meal.id === (mealSlot === 'other' ? 'snack' : mealSlot))
-    if (existing?.status && existing.status !== 'unrecorded') {
-      const confirmation = await Taro.showModal({
-        title: `${MEAL_SLOTS.find((slot) => slot.key === mealSlot)?.label}已有记录`,
-        content: '继续保存会作为本餐的补充，并计入今日总摄入。',
-        confirmText: '继续添加',
-        cancelText: '返回检查',
-      })
-      if (!confirmation.confirm) return
     }
     const items: MealItemInput[] = populatedRows.map((row) => ({
       foodName: row.foodName.trim(),
@@ -433,14 +464,21 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
     setBusy(true)
     setError('')
     try {
-      const result = await createMeal({
+      const body: CreateMealBody = {
         date: localDateString(),
         mealSlot: mealSlot as CreateMealBody['mealSlot'],
         status: 'recorded',
         items,
-      })
+      }
+      const result = editingMealIds.length
+        ? await updateMeal(editingMealIds[0], body)
+        : await createMeal(body)
       if (!result.ok) throw new Error(result.error)
-      await finishSave('饮食已记录')
+      if (editingMealIds.length > 1) {
+        const removals = await Promise.all(editingMealIds.slice(1).map((id) => deleteMeal(id)))
+        if (removals.some((removal) => !removal.ok)) throw new Error('meal_cleanup_failed')
+      }
+      await finishSave(editingMealIds.length ? '饮食已更新' : '饮食已记录')
     } catch {
       setError('饮食没有保存成功，已填写内容会保留')
     } finally {
@@ -626,7 +664,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
                   <Text className='today-ai-label'>快速描述</Text>
                   <Textarea className='today-ai-textarea' value={mealText} disabled={busy} maxlength={500} placeholder='例如：一碗米饭、番茄炒蛋和一杯豆浆' onInput={(event) => setMealText(event.detail.value)} />
                   <View className='today-ai-actions'>
-                    <View className={`today-ai-action ${busy ? 'today-record-control--disabled' : ''}`} onClick={() => void parseMealText()}><Text>AI 解析</Text></View>
+                    <View className={`today-ai-action ${busy ? 'today-record-control--disabled' : ''}`} onClick={() => void parseMealText()}><Text>{busy ? '解析中…' : 'AI 解析'}</Text></View>
                     <View className={`today-ai-action today-ai-action--photo ${busy ? 'today-record-control--disabled' : ''}`} onClick={() => void recognizePhoto('camera', false)}><Text>拍照</Text></View>
                     <View className={`today-ai-action today-ai-action--album ${busy ? 'today-record-control--disabled' : ''}`} onClick={() => void recognizePhoto('album', false)}><Text>相册</Text></View>
                   </View>

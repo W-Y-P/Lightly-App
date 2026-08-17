@@ -66,7 +66,7 @@ export default function ProfilePage() {
   const showPointRules = () => {
     Taro.showModal({
       title: '积分与拍照额度',
-      content: '每天有 1 次免费拍照识别。完成当日达标可获得 1 积分；免费次数用完后，1 积分可兑换 1 次额外拍照识别。文字录入和手动记录不消耗积分。',
+      content: '每天有 5 次免费拍照识别。完成当日达标可获得 1 积分；免费次数用完后，1 积分可兑换 1 次额外拍照识别。文字录入和手动记录不消耗积分。',
       showCancel: false,
       confirmText: '知道了',
     })

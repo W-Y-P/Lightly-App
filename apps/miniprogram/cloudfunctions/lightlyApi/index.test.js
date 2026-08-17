@@ -141,10 +141,15 @@ test('MiMo Chat request keeps the key server-side and uses JSON multimodal input
     assert.equal(request.model, 'mimo-test')
     assert.equal(request.response_format.type, 'json_object')
     assert.equal(request.stream, false)
+    assert.equal(request.max_completion_tokens, 1200)
     assert.equal(request.messages[1].content[1].type, 'image_url')
     assert.match(request.messages[1].content[1].image_url.url, /^data:image\/jpeg;base64,/)
     assert.match(request.messages[0].content, /只返回 JSON/)
     assert.doesNotMatch(JSON.stringify(request), /server-only-test-key/)
+
+    const textRequest = helpers.buildMiMoChatBody({ description: '一碗米饭和两个鸡蛋' })
+    assert.equal(textRequest.max_completion_tokens, 900)
+    assert.equal(typeof textRequest.messages[1].content, 'string')
   } finally {
     if (previousKey == null) delete process.env.MIMO_API_KEY
     else process.env.MIMO_API_KEY = previousKey
@@ -176,18 +181,19 @@ test('photo quota reservation logic reserves free quota before points and resets
   const free = helpers.planPhotoQuotaReservation(user, '2026-07-16', true)
   assert.equal(free.chargeMode, 'free')
   assert.equal(free.pointBalance, 2)
-  assert.equal(free.freeRemaining, 0)
+  assert.equal(free.freeRemaining, 4)
+  assert.equal(free.photoQuota.freeDaily, 5)
 
   const point = helpers.planPhotoQuotaReservation({
     ...user,
-    photoQuota: { ...user.photoQuota, freeUsedToday: 1 },
+    photoQuota: { ...user.photoQuota, freeUsedToday: 5 },
   }, '2026-07-16', true)
   assert.equal(point.chargeMode, 'point')
   assert.equal(point.pointBalance, 1)
 
   const denied = helpers.planPhotoQuotaReservation({
     pointBalance: 0,
-    photoQuota: { freeDaily: 1, lastDate: '2026-07-16', freeUsedToday: 1 },
+    photoQuota: { freeDaily: 1, lastDate: '2026-07-16', freeUsedToday: 5 },
   }, '2026-07-16', true)
   assert.equal(denied.allowed, false)
   assert.equal(denied.reason, 'insufficient points')
@@ -200,7 +206,7 @@ test('photo quota reservation logic reserves free quota before points and resets
   assert.deepEqual(helpers.planPhotoQuotaRollback({
     photoQuota: { freeDaily: 1, lastDate: '2026-07-16', freeUsedToday: 1 },
   }, '2026-07-16', 'free'), {
-    photoQuota: { freeDaily: 1, lastDate: '2026-07-16', freeUsedToday: 0 },
+    photoQuota: { freeDaily: 5, lastDate: '2026-07-16', freeUsedToday: 0 },
   })
 })
 
@@ -214,18 +220,18 @@ test('expired photo reservations restore their charge before retrying the reserv
   }
   const freeRecovery = helpers.planPhotoQuotaReservationWithRecovery({
     pointBalance: 0,
-    photoQuota: { freeDaily: 1, lastDate: '2026-07-16', freeUsedToday: 1 },
+    photoQuota: { freeDaily: 1, lastDate: '2026-07-16', freeUsedToday: 5 },
   }, staleFreeUsage, '2026-07-16', false, now)
 
   assert.equal(helpers.isPhotoReservationExpired(staleFreeUsage, now), true)
   assert.equal(freeRecovery.expired, true)
-  assert.equal(freeRecovery.rollbackUpdates.photoQuota.freeUsedToday, 0)
+  assert.equal(freeRecovery.rollbackUpdates.photoQuota.freeUsedToday, 4)
   assert.equal(freeRecovery.reservation.allowed, true)
-  assert.equal(freeRecovery.reservation.photoQuota.freeUsedToday, 1)
+  assert.equal(freeRecovery.reservation.photoQuota.freeUsedToday, 5)
 
   const pointRecovery = helpers.planPhotoQuotaReservationWithRecovery({
     pointBalance: 0,
-    photoQuota: { freeDaily: 0, lastDate: '2026-07-16', freeUsedToday: 0 },
+    photoQuota: { freeDaily: 5, lastDate: '2026-07-16', freeUsedToday: 5 },
   }, { ...staleFreeUsage, chargeMode: 'point' }, '2026-07-16', true, now)
   assert.equal(pointRecovery.rollbackUpdates.pointBalance, 1)
   assert.equal(pointRecovery.reservation.chargeMode, 'point')
@@ -242,7 +248,7 @@ test('entitlement follows the unified response envelope', () => {
   assert.equal(response.message, 'ok')
   assert.deepEqual(response.data, {
     pointBalance: 3,
-    photoQuota: { freeRemaining: 0, freeUsed: 1, totalToday: 4, freeDaily: 1 },
+    photoQuota: { freeRemaining: 4, freeUsed: 1, totalToday: 4, freeDaily: 5 },
   })
 })
 
