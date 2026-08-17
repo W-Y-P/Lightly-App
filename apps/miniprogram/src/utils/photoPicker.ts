@@ -7,6 +7,16 @@ export interface PickedPhoto {
   fileType?: string
 }
 
+export interface PreparedAiPhoto {
+  base64: string
+  mimeType: string
+  sizeBytes: number
+}
+
+const AI_PHOTO_SOFT_LIMIT_BYTES = 320 * 1024
+const AI_PHOTO_HARD_LIMIT_BYTES = 1024 * 1024
+const AI_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
 interface NativePhotoApi {
   requirePrivacyAuthorize?: (options: {
     success: () => void
@@ -80,6 +90,57 @@ export function detectPhotoMimeType(imageBase64: string): string | null {
     return null
   }
   return null
+}
+
+function base64ByteLength(value: string): number {
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0
+  return Math.floor(value.length * 3 / 4) - padding
+}
+
+function readFileAsBase64(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    Taro.getFileSystemManager().readFile({
+      filePath,
+      encoding: 'base64',
+      success: (result) => resolve(result.data as string),
+      fail: reject,
+    })
+  })
+}
+
+function validatePreparedPhoto(base64: string): PreparedAiPhoto {
+  const sizeBytes = base64ByteLength(base64)
+  if (sizeBytes > AI_PHOTO_HARD_LIMIT_BYTES) throw new Error('image_too_large')
+  const mimeType = detectPhotoMimeType(base64)
+  if (!mimeType || !AI_PHOTO_MIME_TYPES.has(mimeType)) throw new Error('image_type_unsupported')
+  return { base64, mimeType, sizeBytes }
+}
+
+/** Resize large phone photos before Base64 upload; food recognition does not need full camera resolution. */
+export async function preparePhotoForAi(filePath: string): Promise<PreparedAiPhoto> {
+  const originalBase64 = await readFileAsBase64(filePath)
+  if (base64ByteLength(originalBase64) <= AI_PHOTO_SOFT_LIMIT_BYTES) {
+    return validatePreparedPhoto(originalBase64)
+  }
+
+  let smallestBase64 = originalBase64
+  const attempts = [
+    { compressedWidth: 1024, quality: 50 },
+    { compressedWidth: 768, quality: 40 },
+  ]
+  for (const attempt of attempts) {
+    try {
+      const compressed = await Taro.compressImage({ src: filePath, ...attempt })
+      const candidate = await readFileAsBase64(compressed.tempFilePath)
+      if (candidate.length < smallestBase64.length) smallestBase64 = candidate
+      if (base64ByteLength(candidate) <= AI_PHOTO_SOFT_LIMIT_BYTES) {
+        return validatePreparedPhoto(candidate)
+      }
+    } catch {
+      // Keep the smallest successfully read image and continue with the next profile.
+    }
+  }
+  return validatePreparedPhoto(smallestBase64)
 }
 
 function getNativePhotoApi(): NativePhotoApi | null {

@@ -109,6 +109,20 @@ function isWritableRecordDate(value, today = getBeijingDate()) {
   return isDateString(value) && value <= today
 }
 
+function getCalendarMonthRange(value) {
+  const month = String(value || '')
+  const match = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!match) return null
+  const year = Number(match[1])
+  const monthNumber = Number(match[2])
+  if (year < 2000 || year > 2100 || monthNumber < 1 || monthNumber > 12) return null
+  const dayCount = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  const dates = Array.from({ length: dayCount }, (_, index) => (
+    `${match[1]}-${match[2]}-${String(index + 1).padStart(2, '0')}`
+  ))
+  return { month, startDate: dates[0], endDate: dates[dates.length - 1], dates }
+}
+
 function isMorningContext(value) {
   return /morning|早|晨|空腹/i.test(String(value || ''))
 }
@@ -903,6 +917,85 @@ async function getDailySummary(payload, openid) {
   }
 }
 
+async function getRecordCalendar(payload, openid) {
+  const range = getCalendarMonthRange(payload && payload.month)
+  if (!range) return { code: 400, data: null, message: 'valid month required' }
+  const { month, startDate, endDate, dates } = range
+  const [meals, exercises, weights, snapshots, plans, ledger] = await Promise.all([
+    fetchPaginated(() => db.collection('meals').where({
+      openid,
+      date: _.and(_.gte(startDate), _.lte(endDate)),
+    }).orderBy('date', 'asc')),
+    fetchPaginated(() => db.collection('exercises').where({
+      openid,
+      date: _.and(_.gte(startDate), _.lte(endDate)),
+    }).orderBy('date', 'asc')),
+    fetchPaginated(() => db.collection('weights').where({
+      openid,
+      date: _.and(_.gte(startDate), _.lte(endDate)),
+    }).orderBy('date', 'asc')),
+    fetchPaginated(() => db.collection(DAILY_PLAN_SNAPSHOT_COLLECTION).where({
+      openid,
+      date: _.and(_.gte(startDate), _.lte(endDate)),
+    }).orderBy('date', 'asc')),
+    fetchPaginated(() => db.collection('plans').where({ openid }).orderBy('createdAt', 'asc')),
+    fetchPaginated(() => db.collection('pointsLedger').where({
+      openid,
+      reason: 'daily_star',
+      date: _.and(_.gte(startDate), _.lte(endDate)),
+    }).orderBy('date', 'asc')),
+  ])
+
+  const mealsByDate = new Map()
+  const exerciseByDate = new Map()
+  const weightByDate = new Map()
+  meals.forEach((meal) => {
+    const current = mealsByDate.get(meal.date) || []
+    current.push(meal)
+    mealsByDate.set(meal.date, current)
+  })
+  exercises.forEach((exercise) => {
+    exerciseByDate.set(exercise.date, (exerciseByDate.get(exercise.date) || 0) + (exercise.confirmedKcal || 0))
+  })
+  weights.forEach((weight) => {
+    const current = weightByDate.get(weight.date)
+    const nextIsMorning = isMorningContext(weight.weighingContext)
+    const currentIsMorning = current && isMorningContext(current.weighingContext)
+    if (!current || (nextIsMorning && !currentIsMorning) || nextIsMorning === currentIsMorning) {
+      weightByDate.set(weight.date, weight)
+    }
+  })
+  const starDates = new Set(ledger.map((entry) => entry.date))
+
+  const days = dates.map((date) => {
+    const dayMeals = mealsByDate.get(date) || []
+    const intakeKcal = Math.round(dayMeals.reduce((sum, meal) => sum + (meal.totalKcal || 0), 0))
+    const exerciseKcal = Math.round(exerciseByDate.get(date) || 0)
+    const recordedMealSlots = countCompleteMealSlots(dayMeals)
+    const recordComplete = recordedMealSlots >= 2
+    const plan = resolvePlanEnergyForDate(date, snapshots, plans)
+    const summary = plan
+      ? calculateDailySummaryMetrics(plan, intakeKcal, exerciseKcal, recordComplete)
+      : null
+    const planEnergy = plan ? getEffectivePlanEnergy(plan) : null
+    const weight = weightByDate.get(date)
+    return {
+      date,
+      intakeKcal,
+      exerciseKcal,
+      actualDeficitKcal: summary ? summary.actualDeficitKcal : 0,
+      targetDeficitKcal: planEnergy ? planEnergy.targetDeficitKcal : null,
+      achievementRate: summary && recordComplete ? summary.achievementRate : null,
+      recordComplete,
+      recordedMealSlots,
+      achieved: Boolean(summary && recordComplete && summary.achievementRate >= 0.8),
+      star: starDates.has(date),
+      weightKg: weight ? weight.weightKg : null,
+    }
+  })
+  return { code: 0, data: { month, days }, message: 'ok' }
+}
+
 function publicMeal(meal) {
   return {
     id: meal._id || meal.id,
@@ -1521,7 +1614,7 @@ function buildMiMoChatBody({ description, imageBase64, mimeType }) {
       { role: 'user', content: imageBase64 ? userContent : userText },
     ],
     response_format: { type: 'json_object' },
-    max_completion_tokens: imageBase64 ? 1200 : 900,
+    max_completion_tokens: imageBase64 ? 700 : 500,
     stream: false,
   }
 }
@@ -2096,6 +2189,7 @@ async function invokeWithTrustedOpenid(event = {}, openid = '') {
       updatePlanMacros,
       updatePlanActivity,
       getDailySummary,
+      getRecordCalendar,
       createMeal,
       updateMeal,
       deleteMeal,
@@ -2163,6 +2257,7 @@ exports.__test = {
   formatEntitlementResponse,
   getExerciseMet,
   getAiConfig,
+  getCalendarMonthRange,
   getMissingPlanSnapshotDates,
   idempotentDocumentId,
   invokeWithTrustedOpenid,

@@ -440,6 +440,29 @@ export async function getDailySummary(date?: string) {
   return backendRequest<DailySummaryResponse>('getDailySummary', { date }, 'GET', `/daily-summary${q}`)
 }
 
+export interface RecordCalendarDay {
+  date: string
+  intakeKcal: number
+  exerciseKcal: number
+  actualDeficitKcal: number
+  targetDeficitKcal: number | null
+  achievementRate: number | null
+  recordComplete: boolean
+  recordedMealSlots: number
+  achieved: boolean
+  star: boolean
+  weightKg: number | null
+}
+
+export async function getRecordCalendar(month: string) {
+  return backendRequest<{ month: string; days: RecordCalendarDay[] }>(
+    'getRecordCalendar',
+    { month },
+    'GET',
+    `/records/calendar?month=${encodeURIComponent(month)}`,
+  )
+}
+
 // ── Meals ──
 export interface MealItemInput {
   foodName: string

@@ -16,10 +16,10 @@ import {
 import { localDateString, type MealSlot } from '../../../utils/recordIntent'
 import {
   describePhotoPickerError,
-  detectPhotoMimeType,
   isPhotoPickerCancel,
   isPhotoPickerError,
   pickSinglePhoto,
+  preparePhotoForAi,
   photoPickerErrorMessage,
   type PhotoSource,
 } from '../../../utils/photoPicker'
@@ -96,9 +96,6 @@ const FOOD_NUTRITION_PER_100G: Record<string, Omit<MealItemInput, 'foodName' | '
   酸奶: { kcal: 72, carbG: 9.3, proteinG: 2.5, fatG: 2.7 },
 }
 
-const MAX_PHOTO_BYTES = 1024 * 1024
-const PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-
 function emptyMealRow(): MealRow {
   return { id: makeId('meal-row'), foodName: '', quantityG: '', kcal: '', carbG: '', proteinG: '', fatG: '' }
 }
@@ -133,22 +130,6 @@ function newExerciseRow(weightKg: number): ExerciseRow {
     confirmedKcal: String(estimateExerciseKcal('快走', weightKg, 30)),
     kcalManuallyEdited: false,
   }
-}
-
-function base64ByteLength(value: string): number {
-  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0
-  return Math.floor(value.length * 3 / 4) - padding
-}
-
-function readFileAsBase64(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    Taro.getFileSystemManager().readFile({
-      filePath,
-      encoding: 'base64',
-      success: (result) => resolve(result.data as string),
-      fail: reject,
-    })
-  })
 }
 
 function isCancelError(error: unknown): boolean {
@@ -294,27 +275,16 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       setPhotoPhase('recognizing')
       setView('photo')
 
-      let imagePath = originalPath
-      let base64 = await readFileAsBase64(originalPath)
-      if (base64ByteLength(base64) > MAX_PHOTO_BYTES) {
-        for (const quality of [80, 60, 40, 25]) {
-          const compressed = await Taro.compressImage({ src: originalPath, quality })
-          imagePath = compressed.tempFilePath
-          base64 = await readFileAsBase64(imagePath)
-          if (base64ByteLength(base64) <= MAX_PHOTO_BYTES) break
-        }
-      }
-      if (base64ByteLength(base64) > MAX_PHOTO_BYTES) throw new Error('image_too_large')
-
-      const mimeType = detectPhotoMimeType(base64)
-      if (!mimeType || !PHOTO_MIME_TYPES.has(mimeType)) throw new Error('image_type_unsupported')
+      const prepareStartedAt = Date.now()
+      const { base64, mimeType, sizeBytes } = await preparePhotoForAi(originalPath)
       const requestId = makeId('today-photo')
       const runEstimate = (usePoint: boolean) => aiPhotoEstimate(base64, {
         mimeType,
-        imageSizeBytes: base64ByteLength(base64),
+        imageSizeBytes: sizeBytes,
         usePoint,
         clientRequestId: requestId,
       })
+      const requestStartedAt = Date.now()
       let result = await runEstimate(false)
       if (!result.ok && /quota|point|limit|积分|次数/i.test(result.error)) {
         const pointBalance = result.data?.pointBalance ?? today.entitlement?.pointBalance ?? 0
@@ -334,6 +304,11 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       if (!result.ok) {
         throw new Error(/not_configured/i.test(result.error) ? 'ai_not_configured' : result.error)
       }
+      console.info('[TodayPhoto] timing', {
+        prepareMs: requestStartedAt - prepareStartedAt,
+        requestMs: Date.now() - requestStartedAt,
+        sizeBytes,
+      })
       const items = result.data.items?.length ? result.data.items : result.data.estimate ? [{
         foodName: result.data.estimate.foodName,
         quantityG: 0,

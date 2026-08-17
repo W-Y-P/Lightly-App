@@ -5,6 +5,7 @@ import {
   ensureAuthReady,
   getCurrentPlan,
   getDailySummary,
+  getRecordCalendar,
   createMeal,
   createExercise,
   createWeight,
@@ -32,10 +33,10 @@ import type {
 import { RecordIntent, localDateString, takeRecordIntent } from '../../utils/recordIntent'
 import {
   describePhotoPickerError,
-  detectPhotoMimeType,
   isPhotoPickerCancel,
   isPhotoPickerError,
   pickSinglePhoto,
+  preparePhotoForAi,
   photoPickerErrorMessage,
   type PhotoSource,
 } from '../../utils/photoPicker'
@@ -83,7 +84,7 @@ const FOOD_NUTRITION_PER_100G: Record<string, { kcal: number; carbG: number; pro
   酸奶: { kcal: 72, carbG: 9.3, proteinG: 2.5, fatG: 2.7 },
 }
 
-const DAYS_COUNT = 15
+const COMPACT_CALENDAR_RADIUS = 3
 
 interface CalendarDayData {
   date: string
@@ -126,11 +127,9 @@ interface ExerciseRow {
   clientRequestId: string
 }
 
-type DetailKind = 'meal' | 'exercise' | 'weight'
+type DetailKind = 'exercise' | 'weight'
 
 const EMPTY_DETAILS: DayDetails = { meals: [], exercises: [], weights: [] }
-const MAX_PHOTO_BYTES = 1024 * 1024
-const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const EXERCISE_TIMEOUT_MS = 15000
 
 function makeEmptyRow(): MealRow {
@@ -165,22 +164,6 @@ function makeExerciseRow(
   }
 }
 
-function readFileAsBase64(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    Taro.getFileSystemManager().readFile({
-      filePath,
-      encoding: 'base64',
-      success: (result) => resolve(result.data as string),
-      fail: reject,
-    })
-  })
-}
-
-function base64ByteLength(value: string): number {
-  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0
-  return Math.floor(value.length * 3 / 4) - padding
-}
-
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -195,43 +178,40 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 }
 
-/** 仅用于生成日期骨架，绝不把随机示例数据展示为用户数据。 */
-const FALLBACK_CALENDAR: CalendarDayData[] = recentDates(DAYS_COUNT).map((date) => ({
-  date,
-  intake: 0,
-  exercise: 0,
-  deficit: 0,
-  achieved: false,
-  star: false,
-  weight: null,
-}))
-
 function weekdayShort(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00')
   return ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]
 }
 
-function fmtDay(dateStr: string) {
-  const parts = dateStr.split('-')
-  return `${parseInt(parts[1])}/${parseInt(parts[2])}`
-}
-
-/** 生成最近 N 天的日期字符串数组（从 oldest 到 today） */
-function recentDates(n: number): string[] {
-  const result: string[] = []
-  const now = new Date()
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    result.push(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-    )
-  }
-  return result
-}
-
 function todayDateString(): string {
   return localDateString()
+}
+
+function offsetDate(dateStr: string, offset: number): string {
+  const date = new Date(`${dateStr}T00:00:00`)
+  date.setDate(date.getDate() + offset)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function centeredDates(dateStr: string): string[] {
+  return Array.from({ length: COMPACT_CALENDAR_RADIUS * 2 + 1 }, (_, index) => (
+    offsetDate(dateStr, index - COMPACT_CALENDAR_RADIUS)
+  ))
+}
+
+function datesInMonth(month: string): string[] {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const count = new Date(year, monthNumber, 0).getDate()
+  return Array.from({ length: count }, (_, index) => `${month}-${String(index + 1).padStart(2, '0')}`)
+}
+
+function emptyCalendarDay(date: string): ExtendedDayData {
+  return mockToExtended({ date, intake: 0, exercise: 0, deficit: 0, achieved: false, star: false, weight: null })
+}
+
+function monthLabel(month: string): string {
+  const [year, monthNumber] = month.split('-')
+  return `${year}年${Number(monthNumber)}月`
 }
 
 function mockToExtended(mock: CalendarDayData): ExtendedDayData {
@@ -288,10 +268,12 @@ function itemToRow(item: MealItemInput): MealRow {
 }
 
 export default function RecordPage() {
-  const [calendarData, setCalendarData] = useState<ExtendedDayData[]>(() =>
-    FALLBACK_CALENDAR.map(mockToExtended),
-  )
-  const [selectedIdx, setSelectedIdx] = useState(DAYS_COUNT - 1)
+  const initialToday = todayDateString()
+  const initialMonth = initialToday.slice(0, 7)
+  const [calendarMonth, setCalendarMonth] = useState(initialMonth)
+  const [calendarExpanded, setCalendarExpanded] = useState(false)
+  const [calendarData, setCalendarData] = useState<ExtendedDayData[]>(() => datesInMonth(initialMonth).map(emptyCalendarDay))
+  const [selectedIdx, setSelectedIdx] = useState(() => Math.max(0, datesInMonth(initialMonth).indexOf(initialToday)))
   const [loading, setLoading] = useState(true)
   const [calendarError, setCalendarError] = useState('')
   const [details, setDetails] = useState<DayDetails>(EMPTY_DETAILS)
@@ -310,6 +292,7 @@ export default function RecordPage() {
   const [mealPhotoError, setMealPhotoError] = useState('')
   const [mealSubmitError, setMealSubmitError] = useState('')
   const [editingMealId, setEditingMealId] = useState<string | null>(null)
+  const [editingMealExtraIds, setEditingMealExtraIds] = useState<string[]>([])
 
   // ── 运动弹窗状态 ──
   const [exerciseModalOpen, setExerciseModalOpen] = useState(false)
@@ -415,11 +398,11 @@ export default function RecordPage() {
     }
   }, [])
 
-  const loadCalendar = useCallback(async () => {
+  const loadCalendar = useCallback(async (month: string, preferredDate: string) => {
     const requestSeq = ++calendarRequestSeq.current
     setLoading(true)
     setCalendarError('')
-    const dates = recentDates(DAYS_COUNT)
+    const dates = datesInMonth(month)
     const authOk = await ensureAuthReady()
     if (requestSeq !== calendarRequestSeq.current) return
     if (!authOk) {
@@ -428,40 +411,38 @@ export default function RecordPage() {
       return
     }
     try {
-      const [results, weightsRes, planRes] = await Promise.all([
-        Promise.allSettled(dates.map((date) => getDailySummary(date))),
-        getWeights(dates[0], dates[dates.length - 1]),
+      const [calendarRes, planRes] = await Promise.all([
+        getRecordCalendar(month),
         getCurrentPlan(),
       ])
       if (requestSeq !== calendarRequestSeq.current) return
       if (planRes.ok && planRes.data.plan) setCurrentWeightKg(planRes.data.plan.currentWeightKg)
-      const weightByDate = new Map<string, number>()
-      if (weightsRes.ok) {
-        weightsRes.data.weights.forEach((item) => weightByDate.set(item.date, item.weightKg))
-        if ((!planRes.ok || !planRes.data.plan) && weightsRes.data.weights.length > 0) {
-          const sortedWeights = [...weightsRes.data.weights].sort((a, b) => a.date.localeCompare(b.date))
-          const latestWeight = sortedWeights[sortedWeights.length - 1]
-          if (latestWeight) setCurrentWeightKg(latestWeight.weightKg)
+      if (!calendarRes.ok) setCalendarError('本月记录同步失败，当前先显示日期。请点击重试。')
+      const returnedByDate = new Map(calendarRes.ok
+        ? calendarRes.data.days.map((day) => [day.date, day] as const)
+        : [])
+      const updated = dates.map((date) => {
+        const day = returnedByDate.get(date)
+        if (!day) return emptyCalendarDay(date)
+        return {
+          date,
+          intake: day.intakeKcal,
+          exercise: day.exerciseKcal,
+          deficit: day.recordComplete ? day.actualDeficitKcal : 0,
+          achieved: day.achieved,
+          star: day.star,
+          weight: day.weightKg,
+          targetDeficitKcal: day.targetDeficitKcal,
+          achievementRate: day.achievementRate,
+          recordComplete: day.recordComplete,
         }
-      }
-      const failedSummaryCount = results.filter((result) => (
-        result.status === 'rejected' || !result.value.ok
-      )).length
-      if (failedSummaryCount > 0 || !weightsRes.ok) {
-        setCalendarError('部分记录同步失败，空白数据可能不完整。请点击重试。')
-      }
-      const updated = dates.map((date, index) => {
-        const result = results[index]
-        const fallback = mockToExtended(FALLBACK_CALENDAR[index])
-        const day = result.status === 'fulfilled' && result.value.ok && result.value.data
-          ? summaryToDayData(date, result.value.data)
-          : fallback
-        return { ...day, weight: weightByDate.get(date) ?? null }
       })
-      const preferredDate = selectedDateRef.current
       setCalendarData(updated)
       const preferredIdx = updated.findIndex((day) => day.date === preferredDate)
-      setSelectedIdx(preferredIdx >= 0 ? preferredIdx : updated.length - 1)
+      const todayIdx = updated.findIndex((day) => day.date === todayDateString())
+      const nextIdx = preferredIdx >= 0 ? preferredIdx : todayIdx >= 0 ? todayIdx : 0
+      selectedDateRef.current = updated[nextIdx]?.date ?? preferredDate
+      setSelectedIdx(nextIdx)
     } catch {
       if (requestSeq === calendarRequestSeq.current) {
         setCalendarError('记录同步失败，请检查网络后重试。')
@@ -474,15 +455,12 @@ export default function RecordPage() {
   // 跨页快捷入口先定位目标日期，再由下方 effect 打开对应弹窗。
   useDidShow(() => {
     const action = takeRecordIntent()
-    const visibleDates = recentDates(DAYS_COUNT)
-    const requestedDate = action && visibleDates.includes(action.date)
-      ? action.date
-      : selectedDateRef.current
+    const requestedDate = action?.date || selectedDateRef.current || todayDateString()
+    const requestedMonth = requestedDate.slice(0, 7)
+    setCalendarMonth(requestedMonth)
     selectedDateRef.current = requestedDate
-    const requestedIdx = calendarData.findIndex((day) => day.date === requestedDate)
-    if (requestedIdx >= 0) setSelectedIdx(requestedIdx)
     setPendingIntent(null)
-    void loadCalendar()
+    void loadCalendar(requestedMonth, requestedDate)
       .then(() => loadDayDetails(requestedDate))
       .then(() => setPendingIntent(action && action.type !== 'calendar' ? { ...action, date: requestedDate } : null))
       .catch(() => {})
@@ -492,6 +470,7 @@ export default function RecordPage() {
   const openMealModal = (slotKey: string) => {
     setTabBarVisible(false)
     setEditingMealId(null)
+    setEditingMealExtraIds([])
     setActiveMealSlot(slotKey)
     setMealRows([makeEmptyRow()])
     setMealText('')
@@ -504,11 +483,18 @@ export default function RecordPage() {
     setMealModalOpen(true)
   }
 
-  const openMealEditModal = (meal: MealEntry) => {
+  const openMealSlotFromDetails = (slotKey: string) => {
+    const slotMeals = details.meals.filter((meal) => meal.mealSlot === slotKey)
+    if (!slotMeals.length) {
+      openMealModal(slotKey)
+      return
+    }
     setTabBarVisible(false)
-    setEditingMealId(meal.id)
-    setActiveMealSlot(meal.mealSlot)
-    setMealRows(meal.items.length > 0 ? meal.items.map(itemToRow) : [makeEmptyRow()])
+    setEditingMealId(slotMeals[0].id)
+    setEditingMealExtraIds(slotMeals.slice(1).map((meal) => meal.id))
+    setActiveMealSlot(slotKey)
+    const items = slotMeals.flatMap((meal) => meal.items)
+    setMealRows(items.length > 0 ? items.map(itemToRow) : [makeEmptyRow()])
     setMealText('')
     setMealRowErrors([])
     setMealPhotoError('')
@@ -529,6 +515,7 @@ export default function RecordPage() {
     setMealPhotoError('')
     setMealSubmitError('')
     setEditingMealId(null)
+    setEditingMealExtraIds([])
     setMealLoading(false)
     mealClientRequestIdRef.current = ''
     mealRequestFingerprintRef.current = ''
@@ -550,11 +537,6 @@ export default function RecordPage() {
     }).then((result) => {
       if (result.confirm) closeMealModal()
     })
-  }
-
-  // ── handleRecordMeal 改为打开弹窗 ──
-  const handleRecordMeal = (slotKey: string) => {
-    openMealModal(slotKey)
   }
 
   // ── 行操作 ──
@@ -662,32 +644,15 @@ export default function RecordPage() {
       photoSelected = true
       if (!chosenFile?.tempFilePath) return
 
-      let uploadPath = chosenFile.tempFilePath
-      let base64 = await readFileAsBase64(uploadPath)
-      if (base64ByteLength(base64) > MAX_PHOTO_BYTES) {
-        for (const quality of [80, 60, 40, 25]) {
-          const compressed = await Taro.compressImage({ src: chosenFile.tempFilePath, quality })
-          uploadPath = compressed.tempFilePath
-          base64 = await readFileAsBase64(uploadPath)
-          if (base64ByteLength(base64) <= MAX_PHOTO_BYTES) break
-        }
-      }
-      if (base64ByteLength(base64) > MAX_PHOTO_BYTES) {
-        setMealPhotoError('图片压缩后仍超过 1MB，请裁剪后重试。已填写的食物内容会保留。')
-        return
-      }
-      const mimeType = detectPhotoMimeType(base64)
-      if (!mimeType || !SUPPORTED_PHOTO_MIME_TYPES.has(mimeType)) {
-        setMealPhotoError('暂不支持这种图片格式，请选择 JPG、PNG 或 WebP 图片。')
-        return
-      }
-      const imageSizeBytes = base64ByteLength(base64)
+      const prepareStartedAt = Date.now()
+      const { base64, mimeType, sizeBytes: imageSizeBytes } = await preparePhotoForAi(chosenFile.tempFilePath)
       const clientRequestId = makeClientRequestId('ai-photo')
 
       const tryEstimate = async (usePoint: boolean) => {
         return aiPhotoEstimate(base64, { mimeType, usePoint, imageSizeBytes, clientRequestId })
       }
 
+      const requestStartedAt = Date.now()
       let res = await tryEstimate(initialUsePoint)
 
       // 如果失败且可能是配额/积分问题，提示是否用积分重试
@@ -713,6 +678,11 @@ export default function RecordPage() {
       }
 
       if (res.ok) {
+        console.info('[RecordPhoto] timing', {
+          prepareMs: requestStartedAt - prepareStartedAt,
+          requestMs: Date.now() - requestStartedAt,
+          sizeBytes: imageSizeBytes,
+        })
         const newRows: MealRow[] = []
         if (res.data.items && res.data.items.length > 0) {
           newRows.push(...res.data.items.map(itemToRow))
@@ -823,9 +793,13 @@ export default function RecordPage() {
       clientRequestId: editingMealId ? undefined : mealClientRequestIdRef.current,
     }
     try {
-      const res = editingMealId
+      let res = editingMealId
         ? await updateMeal(editingMealId, body)
         : await createMeal(body)
+      if (res.ok && editingMealExtraIds.length > 0) {
+        const removals = await Promise.all(editingMealExtraIds.map((id) => deleteMeal(id)))
+        if (removals.some((result) => !result.ok)) res = { ok: false, error: 'meal_cleanup_partial' }
+      }
       if (res.ok) {
         Taro.showToast({ title: editingMealId ? '已更新' : '已记录', icon: 'success', duration: 1500 })
         closeMealModal()
@@ -888,6 +862,10 @@ export default function RecordPage() {
         if (removals.some((result) => !result.ok)) {
           res = { ok: false, error: 'meal_replacement_partial' }
         }
+      }
+      if (res.ok && editingMealId && editingMealExtraIds.length > 0) {
+        const removals = await Promise.all(editingMealExtraIds.map((id) => deleteMeal(id)))
+        if (removals.some((result) => !result.ok)) res = { ok: false, error: 'meal_cleanup_partial' }
       }
       if (!res.ok) {
         setMealSubmitError('云端暂时未保存本餐状态，请稍后重试。')
@@ -1247,11 +1225,9 @@ export default function RecordPage() {
     if (!confirmation.confirm) return
     setDetailActionId(id)
     try {
-      const res = kind === 'meal'
-        ? await deleteMeal(id)
-        : kind === 'exercise'
-          ? await deleteExercise(id)
-          : await deleteWeight(id)
+      const res = kind === 'exercise'
+        ? await deleteExercise(id)
+        : await deleteWeight(id)
       if (!res.ok) {
         Taro.showToast({ title: '删除失败，请重试', icon: 'none' })
         return
@@ -1265,48 +1241,142 @@ export default function RecordPage() {
     }
   }
 
+  const handleDeleteMealSlot = async (slotKey: string, meals: MealEntry[]) => {
+    if (!meals.length || detailActionId) return
+    const label = MEAL_SLOTS.find((slot) => slot.key === slotKey)?.label ?? '餐饮'
+    const confirmation = await Taro.showModal({
+      title: `删除${label}记录？`,
+      content: '该餐段的食物和热量会从当天统计中移除。',
+      confirmText: '删除',
+      confirmColor: '#bd4b45',
+      cancelText: '取消',
+    })
+    if (!confirmation.confirm) return
+    const actionId = `meal-slot-${slotKey}`
+    setDetailActionId(actionId)
+    try {
+      const results = await Promise.all(meals.map((meal) => deleteMeal(meal.id)))
+      if (results.some((result) => !result.ok)) throw new Error('meal_slot_delete_partial')
+      Taro.showToast({ title: '已删除', icon: 'success' })
+      await refreshAfterDetailChange(selectedDateRef.current)
+    } catch {
+      Taro.showToast({ title: '删除失败，请重试', icon: 'none' })
+    } finally {
+      setDetailActionId('')
+    }
+  }
+
+  const selectCalendarDate = (date: string) => {
+    if (date > todayDateString()) return
+    const month = date.slice(0, 7)
+    selectedDateRef.current = date
+    if (month !== calendarMonth) {
+      setCalendarMonth(month)
+      void loadCalendar(month, date)
+      return
+    }
+    const index = calendarData.findIndex((day) => day.date === date)
+    if (index >= 0) setSelectedIdx(index)
+  }
+
+  const selectCalendarMonth = (value: string) => {
+    const month = value.slice(0, 7)
+    const today = todayDateString()
+    const preferredDate = month === today.slice(0, 7) ? today : `${month}-01`
+    setCalendarMonth(month)
+    setCalendarExpanded(true)
+    selectedDateRef.current = preferredDate
+    void loadCalendar(month, preferredDate)
+  }
+
   const ratePercent = (rate: number | null): string | null => {
     if (rate == null) return null
     return `${Math.round(rate * 100)}%`
   }
 
   const slotLabel = MEAL_SLOTS.find((s) => s.key === activeMealSlot)?.label ?? ''
+  const today = todayDateString()
+  const calendarByDate = new Map(calendarData.map((day) => [day.date, day] as const))
+  const compactCenterDate = calendarMonth === today.slice(0, 7) ? today : (selected?.date ?? `${calendarMonth}-01`)
+  const compactDays = centeredDates(compactCenterDate).map((date) => calendarByDate.get(date) ?? emptyCalendarDay(date))
+  const monthStartWeekday = new Date(`${calendarMonth}-01T00:00:00`).getDay()
 
   return (
     <View className='record-page'>
       <View className='record-scroll'>
-        {/* Calendar strip */}
-        <View className='record-calendar'>
+        {/* Compact week centered on today; expand for the complete month. */}
+        <View className={`record-calendar ${calendarExpanded ? 'record-calendar--expanded' : ''}`}>
+          <View className='record-calendar-toolbar'>
+            <Picker
+              mode='date'
+              fields='month'
+              value={`${calendarMonth}-01`}
+              start='2020-01-01'
+              end={today}
+              onChange={(event) => selectCalendarMonth(event.detail.value)}
+            >
+              <View className='record-month-picker'>
+                <Text className='record-month-picker-label'>{monthLabel(calendarMonth)}</Text>
+                <Text className='record-month-picker-arrow'>⌄</Text>
+              </View>
+            </Picker>
+            <View className='record-calendar-toggle' onClick={() => setCalendarExpanded((value) => !value)}>
+              <Text className='record-calendar-toggle-text'>{calendarExpanded ? '收起' : '展开本月'}</Text>
+              <Text className={`record-calendar-toggle-arrow ${calendarExpanded ? 'record-calendar-toggle-arrow--up' : ''}`}>⌄</Text>
+            </View>
+          </View>
           {loading && (
             <View className='record-loading-bar'>
-              <Text className='record-loading-text'>同步数据中…</Text>
+              <Text className='record-loading-text'>正在更新本月记录…</Text>
             </View>
           )}
           {calendarError && !loading && (
             <View className='record-calendar-error'>
               <Text className='record-calendar-error-text'>{calendarError}</Text>
-              <View className='record-calendar-retry' onClick={() => void loadCalendar()}>
+              <View className='record-calendar-retry' onClick={() => void loadCalendar(calendarMonth, selectedDateRef.current)}>
                 <Text className='record-calendar-retry-text'>重试</Text>
               </View>
             </View>
           )}
-          <ScrollView className='record-calendar-scroll' scrollX enhanced showScrollbar={false} scrollIntoView={selected ? `record-day-${selected.date}` : undefined} scrollWithAnimation>
-            <View className='record-calendar-row'>
-              {calendarData.map((day, idx) => (
+          {!calendarExpanded ? (
+            <View className='record-calendar-compact'>
+              {compactDays.map((day) => (
                 <View
                   key={day.date}
-                  id={`record-day-${day.date}`}
-                  className={`record-day ${idx === selectedIdx ? 'record-day--active' : ''}`}
-                  onClick={() => setSelectedIdx(idx)}
+                  className={`record-day ${day.date === selected?.date ? 'record-day--active' : ''} ${day.date > today ? 'record-day--disabled' : ''}`}
+                  onClick={() => selectCalendarDate(day.date)}
                 >
                   <Text className='record-day-week'>{weekdayShort(day.date)}</Text>
-                  <Text className='record-day-date'>{fmtDay(day.date)}</Text>
+                  <Text className='record-day-date'>{Number(day.date.slice(-2))}</Text>
                   {day.star && <Text className='record-day-star'>★</Text>}
                   {day.achieved && !day.star && <View className='record-day-dot' />}
                 </View>
               ))}
             </View>
-          </ScrollView>
+          ) : (
+            <View className='record-month-calendar'>
+              <View className='record-month-weekdays'>
+                {['日', '一', '二', '三', '四', '五', '六'].map((weekday) => (
+                  <Text className='record-month-weekday' key={weekday}>{weekday}</Text>
+                ))}
+              </View>
+              <View className='record-month-grid'>
+                {Array.from({ length: monthStartWeekday }, (_, index) => (
+                  <View className='record-month-day record-month-day--blank' key={`blank-${index}`} />
+                ))}
+                {calendarData.map((day) => (
+                  <View
+                    key={day.date}
+                    className={`record-month-day ${day.date === selected?.date ? 'record-month-day--active' : ''} ${day.date === today ? 'record-month-day--today' : ''} ${day.date > today ? 'record-month-day--disabled' : ''}`}
+                    onClick={() => selectCalendarDate(day.date)}
+                  >
+                    <Text className='record-month-day-number'>{Number(day.date.slice(-2))}</Text>
+                    {day.star ? <Text className='record-month-day-star'>★</Text> : day.achieved ? <View className='record-month-day-dot' /> : null}
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
         </View>
 
         {selected && (
@@ -1384,31 +1454,40 @@ export default function RecordPage() {
                   </View>
                 </View>
               )}
-              {!detailsLoading && detailsErrors.length === 0 && details.meals.length === 0 && details.exercises.length === 0 && details.weights.length === 0 && (
-                <View className='record-detail-empty'>
-                  <Text className='record-detail-empty-title'>这一天还没有记录</Text>
-                  <Text className='record-detail-empty-text'>从下面选择餐段、运动或体重开始</Text>
-                </View>
-              )}
-              {details.meals.map((meal) => (
-                <View key={`meal-${meal.id}`} className='record-detail-row'>
-                  <View className='record-detail-mark record-detail-mark--meal'><Text className='record-detail-mark-text'>食</Text></View>
-                  <View className='record-detail-main'>
-                    <Text className='record-detail-title'>{MEAL_SLOTS.find((slot) => slot.key === meal.mealSlot)?.label ?? '饮食'}</Text>
-                    <Text className='record-detail-desc'>{meal.items.map((item) => item.foodName).join('、') || (meal.status === 'fasting' ? '轻断食' : '本餐跳过')}</Text>
-                  </View>
-                  <View className='record-detail-end'>
-                    <Text className='record-detail-value'>{meal.totalKcal} kcal</Text>
-                    <View className='record-detail-actions'>
-                      <Text className='record-detail-action' onClick={() => openMealEditModal(meal)}>修改</Text>
-                      <Text
-                        className='record-detail-action record-detail-action--danger'
-                        onClick={() => handleDeleteDetail('meal', meal.id, '餐饮记录')}
-                      >{detailActionId === meal.id ? '删除中' : '删除'}</Text>
+              {MEAL_SLOTS.map((slot) => {
+                const meals = details.meals.filter((meal) => meal.mealSlot === slot.key)
+                const foodNames = meals.flatMap((meal) => meal.items.map((item) => item.foodName))
+                const calories = Math.round(meals.reduce((sum, meal) => sum + meal.totalKcal, 0))
+                const description = foodNames.length > 0
+                  ? foodNames.join('、')
+                  : meals.some((meal) => meal.status === 'fasting')
+                    ? '轻断食'
+                    : meals.some((meal) => meal.status === 'skipped')
+                      ? '本餐跳过'
+                      : '未记录'
+                const actionId = `meal-slot-${slot.key}`
+                return (
+                  <View key={slot.key} className={`record-detail-row ${meals.length ? '' : 'record-detail-row--empty'}`}>
+                    <View className='record-detail-mark record-detail-mark--meal'><Text className='record-detail-mark-text'>{slot.short}</Text></View>
+                    <View className='record-detail-main'>
+                      <Text className='record-detail-title'>{slot.label}</Text>
+                      <Text className='record-detail-desc'>{description}</Text>
+                    </View>
+                    <View className='record-detail-end'>
+                      <Text className={`record-detail-value ${meals.length ? '' : 'record-detail-value--empty'}`}>{meals.length ? `${calories} kcal` : '--'}</Text>
+                      <View className='record-detail-actions'>
+                        <Text className='record-detail-action' onClick={() => openMealSlotFromDetails(slot.key)}>{meals.length ? '修改' : '记录'}</Text>
+                        {meals.length > 0 && (
+                          <Text
+                            className='record-detail-action record-detail-action--danger'
+                            onClick={() => handleDeleteMealSlot(slot.key, meals)}
+                          >{detailActionId === actionId ? '删除中' : '删除'}</Text>
+                        )}
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))}
+                )
+              })}
               {details.exercises.map((exercise) => (
                 <View key={`exercise-${exercise.id}`} className='record-detail-row'>
                   <View className='record-detail-mark record-detail-mark--exercise'><Text className='record-detail-mark-text'>动</Text></View>
@@ -1453,25 +1532,6 @@ export default function RecordPage() {
                   </View>
                 </View>
               ))}
-            </View>
-
-            {/* Meal record buttons */}
-            <View className='record-section'>
-              <Text className='record-section-title'>添加餐饮</Text>
-              <View className='record-meal-grid'>
-                {MEAL_SLOTS.map((slot) => (
-                  <View
-                    key={slot.key}
-                    className='record-meal-btn'
-                    onClick={() => handleRecordMeal(slot.key)}
-                  >
-                    <View className='record-meal-mark'>
-                      <Text className='record-meal-mark-text'>{slot.short}</Text>
-                    </View>
-                    <Text className='record-meal-label'>{slot.label}</Text>
-                  </View>
-                ))}
-              </View>
             </View>
 
             {/* Exercise record */}

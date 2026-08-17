@@ -10,9 +10,19 @@
   z-index: 4;
   top: 0;
   margin: 0 -26rpx;
-  padding: 10rpx 0 18rpx;
+  padding: 12rpx 0 18rpx;
   background: rgba(244, 247, 243, 0.96);
+  border-bottom: 1rpx solid rgba(214, 224, 217, 0.8);
 }
+.record-calendar--expanded { position: relative; }
+.record-calendar-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 62rpx; padding: 0 26rpx 10rpx; }
+.record-month-picker { display: flex; min-height: 54rpx; align-items: center; gap: 8rpx; }
+.record-month-picker-label { color: var(--ink); font-size: 28rpx; font-weight: 730; }
+.record-month-picker-arrow { color: var(--muted); font-size: 21rpx; }
+.record-calendar-toggle { display: flex; min-height: 54rpx; align-items: center; gap: 7rpx; padding: 0 4rpx 0 16rpx; }
+.record-calendar-toggle-text { color: var(--brand-strong); font-size: 21rpx; font-weight: 650; }
+.record-calendar-toggle-arrow { color: var(--brand); font-size: 20rpx; transition: transform 160ms ease; }
+.record-calendar-toggle-arrow--up { transform: rotate(180deg); }
 
 .record-loading-bar { padding: 8rpx 28rpx 14rpx; }
 .record-loading-text { color: var(--muted); font-size: 21rpx; }
@@ -20,31 +30,48 @@
 .record-calendar-error-text { min-width: 0; flex: 1; color: #74532d; font-size: 20rpx; line-height: 1.45; }
 .record-calendar-retry { flex-shrink: 0; padding: 8rpx 14rpx; border: 1rpx solid #c99d54; border-radius: 999rpx; }
 .record-calendar-retry-text { color: #8d622c; font-size: 20rpx; font-weight: 600; }
-.record-calendar-scroll { width: 100%; white-space: nowrap; }
-.record-calendar-row { display: inline-flex; gap: 10rpx; padding: 0 26rpx; }
+.record-calendar-compact { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8rpx; padding: 0 26rpx; }
 
 .record-day {
   position: relative;
-  display: inline-flex;
-  width: 80rpx;
-  min-height: 106rpx;
+  display: flex;
+  min-width: 0;
+  min-height: 98rpx;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--surface);
-  border: 1rpx solid var(--line);
-  border-radius: 18rpx;
+  background: transparent;
+  border: 1rpx solid transparent;
+  border-radius: 14rpx;
 }
 
-.record-day:active { opacity: 0.7; }
+.record-day:active { background: var(--brand-soft); }
 .record-day--active { background: var(--brand); border-color: var(--brand); box-shadow: 0 8rpx 20rpx rgba(22, 138, 91, 0.2); }
+.record-day--disabled { opacity: 0.34; }
 .record-day-week { color: var(--muted); font-size: 20rpx; }
-.record-day-date { margin-top: 8rpx; color: var(--ink); font-size: 23rpx; font-weight: 680; }
+.record-day-date { margin-top: 7rpx; color: var(--ink); font-size: 25rpx; font-weight: 680; }
 .record-day--active .record-day-week,
 .record-day--active .record-day-date { color: #fff; }
 .record-day-star { position: absolute; top: 6rpx; right: 7rpx; color: #f5c452; font-size: 17rpx; }
 .record-day-dot { position: absolute; bottom: 8rpx; width: 8rpx; height: 8rpx; background: var(--brand); border-radius: 50%; }
 .record-day--active .record-day-dot { background: #fff; }
+
+.record-month-calendar { padding: 2rpx 26rpx 8rpx; }
+.record-month-weekdays,
+.record-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.record-month-weekday { padding: 10rpx 0 14rpx; color: var(--muted); font-size: 19rpx; text-align: center; }
+.record-month-grid { row-gap: 6rpx; }
+.record-month-day { position: relative; display: flex; min-height: 82rpx; align-items: center; justify-content: center; border: 1rpx solid transparent; border-radius: 12rpx; }
+.record-month-day:active { background: var(--brand-soft); }
+.record-month-day--blank:active { background: transparent; }
+.record-month-day--today { border-color: #94c6a7; }
+.record-month-day--active { background: var(--brand); border-color: var(--brand); }
+.record-month-day--disabled { opacity: 0.3; }
+.record-month-day-number { color: var(--ink); font-size: 22rpx; font-weight: 620; }
+.record-month-day--active .record-month-day-number { color: #fff; }
+.record-month-day-star { position: absolute; top: 5rpx; right: 7rpx; color: #e9ad25; font-size: 14rpx; }
+.record-month-day-dot { position: absolute; bottom: 7rpx; width: 7rpx; height: 7rpx; background: var(--brand); border-radius: 50%; }
+.record-month-day--active .record-month-day-dot { background: #fff; }
 
 .record-summary {
   display: flex;
@@ -81,6 +108,7 @@
 
 .record-detail-section { padding-bottom: 10rpx; }
 .record-detail-row { display: flex; min-height: 94rpx; align-items: center; border-top: 1rpx solid var(--line); }
+.record-detail-row--empty { min-height: 88rpx; }
 .record-section-heading + .record-detail-row { margin-top: 14rpx; }
 .record-detail-mark { display: flex; width: 48rpx; height: 48rpx; flex: 0 0 48rpx; align-items: center; justify-content: center; background: var(--brand-soft); border-radius: 14rpx; }
 .record-detail-mark--exercise { background: var(--blue-soft); }
@@ -93,6 +121,7 @@
 .record-detail-desc { display: block; max-width: 100%; margin-top: 5rpx; overflow: hidden; color: var(--muted); font-size: 19rpx; text-overflow: ellipsis; white-space: nowrap; }
 .record-detail-end { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; margin-left: 12rpx; }
 .record-detail-value { color: var(--ink); font-size: 21rpx; font-weight: 650; white-space: nowrap; }
+.record-detail-value--empty { color: var(--muted); font-weight: 500; }
 .record-detail-actions { display: flex; gap: 18rpx; margin-top: 8rpx; }
 .record-detail-action { color: var(--brand-strong); font-size: 18rpx; line-height: 1.5; }
 .record-detail-action--danger { color: var(--danger); }
@@ -100,17 +129,6 @@
 .record-detail-error-text { min-width: 0; flex: 1; color: #8f4338; font-size: 20rpx; line-height: 1.45; }
 .record-detail-retry { display: flex; min-width: 92rpx; min-height: 54rpx; align-items: center; justify-content: center; background: #fff; border: 1rpx solid #dfaa9e; border-radius: 12rpx; }
 .record-detail-retry-text { color: #8f4338; font-size: 20rpx; font-weight: 680; }
-.record-detail-empty { padding: 34rpx 0 24rpx; text-align: center; }
-.record-detail-empty-title { display: block; color: var(--ink); font-size: 23rpx; font-weight: 650; }
-.record-detail-empty-text { display: block; margin-top: 8rpx; color: var(--muted); font-size: 20rpx; }
-
-.record-meal-grid { display: flex; gap: 10rpx; margin-top: 20rpx; }
-.record-meal-btn { display: flex; min-width: 0; min-height: 122rpx; flex: 1; flex-direction: column; align-items: center; justify-content: center; background: #f8faf8; border: 1rpx solid var(--line); border-radius: 17rpx; }
-.record-meal-btn:active { background: var(--brand-soft); }
-.record-meal-mark { display: flex; width: 42rpx; height: 42rpx; align-items: center; justify-content: center; background: var(--brand-soft); border-radius: 50%; }
-.record-meal-mark-text { color: var(--brand-strong); font-size: 20rpx; font-weight: 700; }
-.record-meal-label { margin-top: 8rpx; color: var(--ink); font-size: 21rpx; font-weight: 650; }
-
 .record-exercise-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10rpx; margin-top: 20rpx; }
 .record-exercise-btn { display: flex; min-height: 92rpx; flex-direction: column; align-items: center; justify-content: center; background: #f8faf8; border: 1rpx solid var(--line); border-radius: 16rpx; }
 .record-exercise-btn:active { background: var(--blue-soft); }

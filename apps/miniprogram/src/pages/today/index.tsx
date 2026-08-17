@@ -129,6 +129,7 @@ export default function TodayPage() {
   const [recordAction, setRecordAction] = useState<TodayRecordAction | null>(null)
   const recordActionRef = useRef<TodayRecordAction | null>(null)
   const loadSequence = useRef(0)
+  const hasRenderedToday = useRef(false)
 
   useDidShow(() => {
     // Returning from the native camera/album also triggers didShow. Reloading here
@@ -159,24 +160,29 @@ export default function TodayPage() {
 
   async function loadFromApi() {
     const sequence = ++loadSequence.current
-    resetTodayData()
-    setPageState('loading')
+    const blockingLoad = !hasRenderedToday.current
+    if (blockingLoad) {
+      resetTodayData()
+      setPageState('loading')
+      setHasCompleteMeals(false)
+    }
     setPartialFailures([])
-    setHasCompleteMeals(false)
     let summaryRendered = false
 
     try {
       const authed = await ensureAuthReady()
       if (sequence !== loadSequence.current) return
       if (!authed) {
-        setPageState('error')
+        if (blockingLoad) setPageState('error')
+        else setPartialFailures(['今日摘要'])
         return
       }
 
       const summaryRes = await getDailySummary()
       if (sequence !== loadSequence.current) return
       if (!summaryRes.ok) {
-        setPageState('error')
+        if (blockingLoad) setPageState('error')
+        else setPartialFailures(['今日摘要'])
         return
       }
 
@@ -185,6 +191,7 @@ export default function TodayPage() {
           apiLoaded: true,
           date: summaryRes.data.date ? formatDateLabel(summaryRes.data.date) : '',
         })
+        hasRenderedToday.current = true
         setPageState('empty')
         return
       }
@@ -219,6 +226,7 @@ export default function TodayPage() {
       }
       setTodayData(initialPatch)
       setHasCompleteMeals(initialRecordComplete)
+      hasRenderedToday.current = true
       setPageState('ready')
       summaryRendered = true
 
@@ -386,7 +394,8 @@ export default function TodayPage() {
         setPartialFailures(['辅助数据'])
         return
       }
-      setPageState('error')
+      if (blockingLoad) setPageState('error')
+      else setPartialFailures(['今日摘要'])
     }
   }
 

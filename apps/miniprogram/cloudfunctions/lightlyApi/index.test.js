@@ -141,14 +141,14 @@ test('MiMo Chat request keeps the key server-side and uses JSON multimodal input
     assert.equal(request.model, 'mimo-test')
     assert.equal(request.response_format.type, 'json_object')
     assert.equal(request.stream, false)
-    assert.equal(request.max_completion_tokens, 1200)
+    assert.equal(request.max_completion_tokens, 700)
     assert.equal(request.messages[1].content[1].type, 'image_url')
     assert.match(request.messages[1].content[1].image_url.url, /^data:image\/jpeg;base64,/)
     assert.match(request.messages[0].content, /只返回 JSON/)
     assert.doesNotMatch(JSON.stringify(request), /server-only-test-key/)
 
     const textRequest = helpers.buildMiMoChatBody({ description: '一碗米饭和两个鸡蛋' })
-    assert.equal(textRequest.max_completion_tokens, 900)
+    assert.equal(textRequest.max_completion_tokens, 500)
     assert.equal(typeof textRequest.messages[1].content, 'string')
   } finally {
     if (previousKey == null) delete process.env.MIMO_API_KEY
@@ -269,6 +269,15 @@ test('future record dates and rewards are rejected before any database access', 
   const reward = await helpers.awardDailyStarIfEligible('trusted-user', '2999-01-01', 1000, 500)
   assert.equal(reward.pointAwarded, false)
   assert.deepEqual(reward.warnings, ['future_date_not_eligible'])
+})
+
+test('record calendar month range covers every real day including leap years', () => {
+  const leap = helpers.getCalendarMonthRange('2028-02')
+  assert.equal(leap.startDate, '2028-02-01')
+  assert.equal(leap.endDate, '2028-02-29')
+  assert.equal(leap.dates.length, 29)
+  assert.equal(helpers.getCalendarMonthRange('2028-13'), null)
+  assert.equal(helpers.getCalendarMonthRange('not-a-month'), null)
 })
 
 test('future weights are never selected for plan calibration, including preferred morning entries', () => {
