@@ -276,9 +276,11 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       })
       let result = await runEstimate(false)
       if (!result.ok && /quota|point|limit|积分|次数/i.test(result.error)) {
+        const pointBalance = result.data?.pointBalance ?? today.entitlement?.pointBalance ?? 0
+        if (pointBalance <= 0) throw new Error('photo_quota_exhausted')
         const pointResult = await Taro.showModal({
           title: '使用 1 积分继续？',
-          content: `今日免费次数已用完，当前有 ${today.entitlement?.pointBalance ?? 0} 积分。`,
+          content: `今日免费次数已用完，当前有 ${pointBalance} 积分。`,
           confirmText: '使用积分',
           cancelText: '取消',
         })
@@ -318,6 +320,8 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
       const message = photoPickerErrorMessage(photoError)
       const friendly = /not_configured/.test(message)
         ? 'AI 服务还未配置 API key，请先手动记录'
+        : /photo_quota_exhausted|no quota or points|daily_limit/i.test(message)
+          ? '今日免费识别次数已用完，当前没有可用积分'
         : /too_large/.test(message)
           ? '图片仍大于 1MB，请裁剪后重试'
           : /image_missing/.test(message)

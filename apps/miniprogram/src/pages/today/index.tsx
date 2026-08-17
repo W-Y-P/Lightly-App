@@ -135,7 +135,8 @@ export default function TodayPage() {
 
   useDidHide(() => {
     loadSequence.current += 1
-    setRecordAction(null)
+    // Native camera and album pickers hide the page while their promise is pending.
+    // Keep the overlay mounted so the selected photo can finish recognition on return.
   })
 
   const openMeal = (slot: MealSlot) => setRecordAction({ type: 'meal', slot })

@@ -692,9 +692,16 @@ export default function RecordPage() {
 
       // 如果失败且可能是配额/积分问题，提示是否用积分重试
       if (!initialUsePoint && !res.ok && res.error && /quota|point|limit|余额|积分|次数/i.test(res.error)) {
+        const pointBalance = res.data?.pointBalance ?? 0
+        if (pointBalance <= 0) {
+          const message = '今日免费识别次数已用完，当前没有可用积分'
+          setMealPhotoError(`${message}。已填写的食物内容会保留。`)
+          Taro.showToast({ title: message, icon: 'none', duration: 2500 })
+          return
+        }
         const confirmRes = await Taro.showModal({
           title: '提示',
-          content: '免费次数已用完，是否使用积分继续识别？',
+          content: `免费次数已用完，是否使用 1 积分继续识别？当前有 ${pointBalance} 积分。`,
           confirmText: '使用积分',
           cancelText: '取消',
         })
