@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, Input, Picker } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { createPlan, ensureAuthReady } from '../../api/client'
+import {
+  createPlan,
+  dismissOnboardingLocally,
+  ensureAuthReady,
+  skipOnboarding,
+} from '../../api/client'
 import { ACTIVITY_LEVELS } from '../../utils/activityLevels'
 import './index.scss'
 
@@ -80,6 +85,7 @@ export default function OnboardingPage() {
   const [targetDate, setTargetDate] = useState(draft.targetDate || dateAfterWeeks(12))
   const [activity, setActivity] = useState(ACTIVITY_LEVELS.some((item) => item.value === draft.activity) ? draft.activity as number : 1.45)
   const [submitting, setSubmitting] = useState(false)
+  const [skipping, setSkipping] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [error, setError] = useState('')
 
@@ -147,7 +153,7 @@ export default function OnboardingPage() {
   })
 
   const handleNext = async () => {
-    if (submitting || completed) return
+    if (submitting || skipping || completed) return
 
     const validationError = validateStep(step)
     if (validationError) {
@@ -185,21 +191,32 @@ export default function OnboardingPage() {
   }
 
   const handleBack = () => {
-    if (submitting) return
+    if (submitting || skipping) return
     setError('')
     if (step > 0) setStep(step - 1)
   }
 
-  const handleExit = () => {
-    Taro.showModal({
+  const handleExit = async () => {
+    if (submitting || skipping) return
+    const result = await Taro.showModal({
       title: '暂不创建计划？',
       content: '你可以先进入今日页，之后再从“我的 - 目标管理”回来设置。',
       cancelText: '继续设置',
       confirmText: '暂时跳过',
-      success: result => {
-        if (result.confirm) Taro.switchTab({ url: '/pages/today/index' })
-      },
     })
+    if (!result.confirm) return
+
+    setSkipping(true)
+    dismissOnboardingLocally()
+    try {
+      const authed = await ensureAuthReady()
+      if (authed) await skipOnboarding()
+    } catch (skipError) {
+      console.warn('[Onboarding] skip status will remain local until next successful setup', skipError)
+    } finally {
+      setSkipping(false)
+      Taro.switchTab({ url: '/pages/today/index' })
+    }
   }
 
   const handleSubmit = async () => {
@@ -426,7 +443,10 @@ export default function OnboardingPage() {
       <View className='onboard-header'>
         <View className='onboard-header-row'>
           <Text className='onboard-header-title'>建立减脂计划</Text>
-          <Text className='onboard-step-count'>{step + 1} / {TOTAL_STEPS}</Text>
+          <View className='onboard-header-actions'>
+            <Text className='onboard-step-count'>{step + 1} / {TOTAL_STEPS}</Text>
+            <Text className='onboard-skip-action' onClick={handleExit}>{skipping ? '正在进入…' : '稍后填写'}</Text>
+          </View>
         </View>
         <View className='onboard-progress' aria-label={`第 ${step + 1} 步，共 ${TOTAL_STEPS} 步`}>
           {Array.from({ length: TOTAL_STEPS }).map((_, index) => (
@@ -448,10 +468,10 @@ export default function OnboardingPage() {
 
       <View className='onboard-bottom'>
         <View className='onboard-secondary-btn' onClick={step > 0 ? handleBack : handleExit}>
-          <Text>{step > 0 ? '上一步' : '暂时跳过'}</Text>
+          <Text>{step > 0 ? '上一步' : '稍后填写'}</Text>
         </View>
-        <View className={`onboard-primary-btn ${submitting || completed ? 'onboard-primary-btn--disabled' : ''}`} onClick={handleNext}>
-          <Text>{completed ? '创建成功' : submitting ? '正在创建…' : step === TOTAL_STEPS - 1 ? '创建我的计划' : '继续'}</Text>
+        <View className={`onboard-primary-btn ${submitting || skipping || completed ? 'onboard-primary-btn--disabled' : ''}`} onClick={handleNext}>
+          <Text>{completed ? '创建成功' : submitting ? '正在创建…' : skipping ? '正在进入…' : step === TOTAL_STEPS - 1 ? '创建我的计划' : '继续'}</Text>
         </View>
       </View>
     </View>

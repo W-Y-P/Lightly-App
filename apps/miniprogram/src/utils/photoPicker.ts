@@ -13,8 +13,9 @@ export interface PreparedAiPhoto {
   sizeBytes: number
 }
 
-const AI_PHOTO_SOFT_LIMIT_BYTES = 320 * 1024
+const AI_PHOTO_SOFT_LIMIT_BYTES = 240 * 1024
 const AI_PHOTO_HARD_LIMIT_BYTES = 1024 * 1024
+const AI_PHOTO_MAX_DIMENSION = 384
 const AI_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 interface NativePhotoApi {
@@ -119,14 +120,22 @@ function validatePreparedPhoto(base64: string): PreparedAiPhoto {
 /** Resize large phone photos before Base64 upload; food recognition does not need full camera resolution. */
 export async function preparePhotoForAi(filePath: string): Promise<PreparedAiPhoto> {
   const originalBase64 = await readFileAsBase64(filePath)
-  if (base64ByteLength(originalBase64) <= AI_PHOTO_SOFT_LIMIT_BYTES) {
+  let maxDimension = 0
+  try {
+    const info = await Taro.getImageInfo({ src: filePath })
+    maxDimension = Math.max(Number(info.width) || 0, Number(info.height) || 0)
+  } catch {
+    // Byte size remains a safe fallback when image metadata is unavailable.
+  }
+  if (base64ByteLength(originalBase64) <= AI_PHOTO_SOFT_LIMIT_BYTES
+    && (!maxDimension || maxDimension <= AI_PHOTO_MAX_DIMENSION)) {
     return validatePreparedPhoto(originalBase64)
   }
 
   let smallestBase64 = originalBase64
   const attempts = [
-    { compressedWidth: 1024, quality: 50 },
-    { compressedWidth: 768, quality: 40 },
+    { compressedWidth: AI_PHOTO_MAX_DIMENSION, quality: 38 },
+    { compressedWidth: 320, quality: 34 },
   ]
   for (const attempt of attempts) {
     try {

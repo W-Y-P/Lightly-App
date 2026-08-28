@@ -393,9 +393,9 @@ function calculateDailySummaryMetrics(plan, intakeKcal, exerciseKcal, isRecordCo
   }
 }
 
-function ensureUser(openid) {
+function ensureUserWithState(openid) {
   return db.collection('users').where({ openid }).limit(1).get().then((res) => {
-    if (res.data.length) return res.data[0]
+    if (res.data.length) return { user: res.data[0], isNew: false }
     const doc = {
       openid,
       createdAt: db.serverDate(),
@@ -407,8 +407,33 @@ function ensureUser(openid) {
       },
     }
     const userId = stableDocumentId('user', openid)
-    return db.collection('users').doc(userId).set({ data: doc }).then(() => ({ _id: userId, ...doc }))
+    return db.collection('users').doc(userId).set({ data: doc }).then(() => ({
+      user: { _id: userId, ...doc },
+      isNew: true,
+    }))
   })
+}
+
+function ensureUser(openid) {
+  return ensureUserWithState(openid).then((result) => result.user)
+}
+
+function formatOnboardingStatus(user, hasPlan) {
+  const skipped = Boolean(user && user.onboardingSkippedAt)
+  const completed = Boolean(hasPlan || (user && user.onboardingCompletedAt))
+  return {
+    needsOnboarding: !completed && !skipped,
+    hasPlan: Boolean(hasPlan),
+    skipped,
+  }
+}
+
+async function resolveOnboardingStatus(openid, suppliedUser) {
+  const [user, planRes] = await Promise.all([
+    suppliedUser ? Promise.resolve(suppliedUser) : ensureUser(openid),
+    db.collection('plans').where({ openid }).limit(1).get(),
+  ])
+  return formatOnboardingStatus(user, Boolean(planRes.data && planRes.data.length))
 }
 
 function resolvePhotoFreeDaily(quota) {
@@ -513,24 +538,52 @@ async function awardDailyStarIfEligible(openid, date, actualDeficitKcal, targetD
   }
 }
 
-function authWechat(payload, openid) {
+async function authWechat(payload, openid) {
   if (!payload || !payload.code) {
     return { code: 400, data: null, message: 'code required' }
   }
+  const ensured = await ensureUserWithState(openid)
+  const onboarding = await resolveOnboardingStatus(openid, ensured.user)
   const userId = `wx_${openid || payload.code.slice(0, 16)}`
   return {
     code: 0,
-    data: { token: `cloud_${userId}`, userId, isNew: false },
+    data: { token: `cloud_${userId}`, userId, isNew: ensured.isNew, ...onboarding },
     message: 'ok',
   }
 }
 
-function authGuest(payload, openid) {
+async function authGuest(payload, openid) {
   const fallbackOpenid = openid || `guest_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
+  const ensured = await ensureUserWithState(fallbackOpenid)
+  const onboarding = await resolveOnboardingStatus(fallbackOpenid, ensured.user)
   const userId = `guest_${fallbackOpenid.slice(0, 16)}`
   return {
     code: 0,
-    data: { token: `cloud_${userId}`, userId, isNew: true },
+    data: { token: `cloud_${userId}`, userId, isNew: ensured.isNew, ...onboarding },
+    message: 'ok',
+  }
+}
+
+async function getOnboardingStatus(payload, openid) {
+  const status = await resolveOnboardingStatus(openid)
+  return { code: 0, data: status, message: 'ok' }
+}
+
+async function skipOnboarding(payload, openid) {
+  const user = await ensureUser(openid)
+  await db.collection('users').doc(user._id).update({
+    data: {
+      onboardingSkippedAt: db.serverDate(),
+      updatedAt: db.serverDate(),
+    },
+  })
+  const status = await resolveOnboardingStatus(openid, {
+    ...user,
+    onboardingSkippedAt: true,
+  })
+  return {
+    code: 0,
+    data: status,
     message: 'ok',
   }
 }
@@ -626,6 +679,18 @@ async function createPlan(payload, openid) {
   const created = await createDocumentIdempotently('plans', 'plan', openid, payload.clientRequestId, planDoc, fingerprintInput)
   if (created.conflict) {
     return { code: 409, data: { conflict: true, resource: 'plan' }, message: 'idempotency_conflict' }
+  }
+  try {
+    const user = await ensureUser(openid)
+    await db.collection('users').doc(user._id).update({
+      data: {
+        onboardingCompletedAt: db.serverDate(),
+        onboardingSkippedAt: _.remove(),
+        updatedAt: db.serverDate(),
+      },
+    })
+  } catch (error) {
+    console.error('failed to persist onboarding completion', error && error.message)
   }
   const publicPlan = { ...created.document }
   delete publicPlan.openid
@@ -1553,7 +1618,7 @@ async function reserveAiTextUsage(openid, date) {
   })
 }
 
-function normalizeMealItems(rawItems) {
+function normalizeMealItems(rawItems, maxItems = 8) {
   if (!Array.isArray(rawItems)) return []
   return rawItems
     .map((item) => {
@@ -1580,7 +1645,7 @@ function normalizeMealItems(rawItems) {
       }
     })
     .filter(Boolean)
-    .slice(0, 12)
+    .slice(0, maxItems)
 }
 
 function aggregateEstimate(items, confidence) {
@@ -1614,7 +1679,8 @@ function buildMiMoChatBody({ description, imageBase64, mimeType }) {
       { role: 'user', content: imageBase64 ? userContent : userText },
     ],
     response_format: { type: 'json_object' },
-    max_completion_tokens: imageBase64 ? 700 : 500,
+    thinking: { type: 'disabled' },
+    max_completion_tokens: imageBase64 ? 340 : 360,
     stream: false,
   }
 }
@@ -1707,13 +1773,17 @@ function callMiMoChat(requestBody) {
 function buildMealPrompt(hasImage) {
   return [
     '你是减脂记录应用中的食物热量估算助手。',
-    hasImage ? '根据图片拆分每种可见食物，并结合常见餐具估算份量。' : '根据自然语言描述拆分每种食物。',
+    hasImage
+      ? '根据图片识别主要食物，并结合常见餐具估算份量；同一道菜中的零碎蔬菜合并为“混合蔬菜”，不要逐片拆分。'
+      : '根据自然语言描述拆分每种食物。',
     '数量按可食用部分估算；热量与碳水、蛋白质、脂肪必须对应同一份量。',
     '估算要保守、日常化，适合中国区饮食；不确定时给出合理近似值。',
     '提示语保持温和，不作医学诊断，不给绝对健康承诺，并提醒用户确认份量。',
     '只返回 JSON，不要附加解释、注释或 Markdown 代码块。',
     '返回格式：{"items":[{"foodName":"食物名称","quantityG":100,"kcal":100,"carbG":10,"proteinG":10,"fatG":5}],"message":"请确认份量"}。',
-    'items 必须包含 1 至 12 项；每项六个字段都必须提供数值，未知营养素可保守估算为 0。',
+    hasImage
+      ? 'items 必须包含 1 至 5 项，只保留主要食物；每项六个字段都必须提供数值，未知营养素可保守估算为 0。'
+      : 'items 必须包含 1 至 8 项；合并零碎调味料，每项六个字段都必须提供数值，未知营养素可保守估算为 0。',
   ].join('\n')
 }
 
@@ -1731,7 +1801,7 @@ function estimateMealTextWithAi(description, openid) {
 
 function estimateMealPhotoWithAi(imageBase64, mimeType, openid) {
   return callMiMoChat(buildMiMoChatBody({ imageBase64, mimeType, openid })).then((parsed) => {
-    const items = normalizeMealItems(parsed.items)
+    const items = normalizeMealItems(parsed.items, 5)
     if (!items.length) throw new Error('ai_empty_items')
     return {
       items,
@@ -2000,9 +2070,11 @@ async function aiTextEstimate(payload, openid) {
 
 async function aiPhotoEstimate(payload, openid) {
   // Photo data is NOT persisted — only used for estimation in-memory
+  const serverStartedAt = Date.now()
   const date = getBeijingDate()
   const photo = validatePhotoInput(payload)
   if (photo.error) return { code: 400, data: null, message: photo.error }
+  const validationMs = Date.now() - serverStartedAt
   const config = getAiConfig()
   if (!config.enabled) {
     return { code: 503, data: null, message: 'ai_not_configured' }
@@ -2013,18 +2085,34 @@ async function aiPhotoEstimate(payload, openid) {
   const requestFingerprint = crypto.createHash('sha256')
     .update(`${photo.mimeType}:${photo.imageBase64}:${Boolean(payload && payload.usePoint)}`)
     .digest('hex')
+  const quotaStartedAt = Date.now()
   let user = await ensureUser(openid)
-  await recoverExpiredPhotoReservations(user._id, openid)
-  user = await ensureUser(openid)
-  const reservation = await reservePhotoQuota(user, openid, {
+  const reservationRequest = {
     usageId,
     clientRequestId,
     requestFingerprint,
     date,
     usePoint: Boolean(payload && payload.usePoint),
-  })
+  }
+  let reservation = await reservePhotoQuota(user, openid, reservationRequest)
+  let recoveredReservations = 0
+  if (reservation.state === 'denied') {
+    recoveredReservations = await recoverExpiredPhotoReservations(user._id, openid)
+    if (recoveredReservations > 0) {
+      user = await ensureUser(openid)
+      reservation = await reservePhotoQuota(user, openid, reservationRequest)
+    }
+  }
+  const quotaMs = Date.now() - quotaStartedAt
   if (reservation.state === 'committed') {
-    return { code: 0, data: reservation.responseData, message: 'ok' }
+    return {
+      code: 0,
+      data: {
+        ...reservation.responseData,
+        timing: { validationMs, quotaMs, aiMs: 0, commitMs: 0, totalServerMs: Date.now() - serverStartedAt, deduplicated: true },
+      },
+      message: 'ok',
+    }
   }
   if (reservation.state === 'in_progress') {
     return { code: 409, data: null, message: 'photo request already in progress' }
@@ -2043,8 +2131,10 @@ async function aiPhotoEstimate(payload, openid) {
     }
   }
 
+  const aiStartedAt = Date.now()
   try {
     const aiResult = await estimateMealPhotoWithAi(photo.imageBase64, photo.mimeType, openid)
+    const aiMs = Date.now() - aiStartedAt
     const responseData = {
       estimate: aiResult.estimate,
       items: aiResult.items,
@@ -2059,23 +2149,52 @@ async function aiPhotoEstimate(payload, openid) {
       imageSizeBytes: photo.sizeBytes,
       provider: config.provider,
       model: config.model,
+      timing: { validationMs, quotaMs, aiMs, recoveredReservations },
     }
+    const commitStartedAt = Date.now()
     const committed = await commitPhotoQuota(usageId, responseData)
+    committed.timing = {
+      ...committed.timing,
+      commitMs: Date.now() - commitStartedAt,
+      totalServerMs: Date.now() - serverStartedAt,
+    }
     return { code: 0, data: committed, message: 'ok' }
   } catch (err) {
+    const aiMs = Date.now() - aiStartedAt
+    const rollbackStartedAt = Date.now()
     try {
       await rollbackPhotoQuota(user._id, usageId)
     } catch (rollbackError) {
       console.error('MiMo photo estimate and quota rollback failed', err && err.message, rollbackError && rollbackError.message)
       return {
         code: 500,
-        data: null,
+        data: {
+          timing: {
+            validationMs,
+            quotaMs,
+            aiMs,
+            rollbackMs: Date.now() - rollbackStartedAt,
+            totalServerMs: Date.now() - serverStartedAt,
+          },
+        },
         message: 'ai_quota_rollback_failed',
       }
     }
     console.error('MiMo photo estimate failed', err && err.message)
     const publicError = publicAiError(err)
-    return { code: publicError.code, data: null, message: publicError.message }
+    return {
+      code: publicError.code,
+      data: {
+        timing: {
+          validationMs,
+          quotaMs,
+          aiMs,
+          rollbackMs: Date.now() - rollbackStartedAt,
+          totalServerMs: Date.now() - serverStartedAt,
+        },
+      },
+      message: publicError.message,
+    }
   }
 }
 
@@ -2182,6 +2301,8 @@ async function invokeWithTrustedOpenid(event = {}, openid = '') {
     const handler = {
       authWechat,
       authGuest,
+      getOnboardingStatus,
+      skipOnboarding,
       getEntitlement,
       createPlan,
       getCurrentPlan,
@@ -2255,6 +2376,7 @@ exports.__test = {
   energyMetricsOnly,
   executeAccountDeletion,
   formatEntitlementResponse,
+  formatOnboardingStatus,
   getExerciseMet,
   getAiConfig,
   getCalendarMonthRange,

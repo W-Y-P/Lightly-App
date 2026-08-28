@@ -18,6 +18,13 @@
   gap: 24px;
 }
 
+.onboard-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 20px;
+}
+
 .onboard-header-title {
   color: var(--ink);
   font-size: 24px;
@@ -28,6 +35,17 @@
   color: var(--muted);
   font-size: 21px;
   font-variant-numeric: tabular-nums;
+}
+
+.onboard-skip-action {
+  color: var(--brand);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.onboard-skip-action:active {
+  opacity: 0.55;
 }
 
 .onboard-progress {

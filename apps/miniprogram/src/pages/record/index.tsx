@@ -682,6 +682,7 @@ export default function RecordPage() {
           prepareMs: requestStartedAt - prepareStartedAt,
           requestMs: Date.now() - requestStartedAt,
           sizeBytes: imageSizeBytes,
+          server: res.data.timing,
         })
         const newRows: MealRow[] = []
         if (res.data.items && res.data.items.length > 0) {

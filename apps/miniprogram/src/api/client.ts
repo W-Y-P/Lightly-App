@@ -23,10 +23,19 @@ interface ClientRequestBody {
 
 export type AuthMode = 'wechat' | 'guest' | null
 
+export interface OnboardingStatus {
+  needsOnboarding: boolean
+  hasPlan: boolean
+  skipped: boolean
+}
+
+type AuthResponse = { token: string; userId: string; isNew: boolean } & OnboardingStatus
+
 let _token: string | null = null
 let _authMode: AuthMode = null
 let _cloudFailureCount = 0
 let _cloudRetryAfter = 0
+let _bootstrapOnboardingStatus: OnboardingStatus | null = null
 const CLOUD_FAILURE_THRESHOLD = 3
 const CLOUD_BREAKER_COOLDOWN_MS = 10_000
 
@@ -40,6 +49,23 @@ export function getToken() {
 
 export function getAuthMode(): AuthMode {
   return _authMode
+}
+
+function onboardingDismissalKey(): string {
+  const userId = String(Taro.getStorageSync('userId') || 'anonymous')
+  return `onboardingDismissed:${userId}`
+}
+
+export function dismissOnboardingLocally() {
+  Taro.setStorageSync(onboardingDismissalKey(), true)
+}
+
+function onboardingDismissedLocally(): boolean {
+  return Boolean(Taro.getStorageSync(onboardingDismissalKey()))
+}
+
+function clearOnboardingDismissal() {
+  Taro.removeStorageSync(onboardingDismissalKey())
 }
 
 // ── Auth readiness singleton ──
@@ -70,11 +96,13 @@ export function ensureAuthReady(): Promise<boolean> {
 
 /** Reset auth state (used on logout / account delete). */
 export function resetAuth() {
+  clearOnboardingDismissal()
   _token = null
   _authMode = null
   _authReadyPromise = null
   _cloudFailureCount = 0
   _cloudRetryAfter = 0
+  _bootstrapOnboardingStatus = null
   Taro.removeStorageSync('token')
   Taro.removeStorageSync('userId')
   Taro.removeStorageSync('authMode')
@@ -92,7 +120,7 @@ async function _doInitAuth(): Promise<boolean> {
     }
 
     // Step 2: WeChat login
-    let tokenResult: { token: string; userId: string } | null = null
+    let tokenResult: AuthResponse | null = null
     let authMode: Exclude<AuthMode, null> | null = null
 
     try {
@@ -120,6 +148,15 @@ async function _doInitAuth(): Promise<boolean> {
     if (tokenResult) {
       setToken(tokenResult.token)
       _authMode = authMode
+      _bootstrapOnboardingStatus = typeof tokenResult.needsOnboarding === 'boolean'
+        && typeof tokenResult.hasPlan === 'boolean'
+        && typeof tokenResult.skipped === 'boolean'
+        ? {
+            needsOnboarding: tokenResult.needsOnboarding,
+            hasPlan: tokenResult.hasPlan,
+            skipped: tokenResult.skipped,
+          }
+        : null
       Taro.setStorageSync('token', tokenResult.token)
       Taro.setStorageSync('userId', tokenResult.userId)
       if (authMode) Taro.setStorageSync('authMode', authMode)
@@ -306,12 +343,31 @@ async function createRequestWithRetry<T>(
 
 /** 游客登录，返回 token/userId，不含 tier */
 export async function authGuest() {
-  return backendRequest<{ token: string; userId: string; isNew: boolean }>('authGuest', {}, 'POST', '/auth/guest')
+  return backendRequest<AuthResponse>('authGuest', {}, 'POST', '/auth/guest')
 }
 
 /** 微信登录：传入 wx.login() 返回的 code */
 export async function authWechat(code: string) {
-  return backendRequest<{ token: string; userId: string; isNew: boolean }>('authWechat', { code }, 'POST', '/auth/wechat', { code })
+  return backendRequest<AuthResponse>('authWechat', { code }, 'POST', '/auth/wechat', { code })
+}
+
+export async function getOnboardingStatus() {
+  if (_bootstrapOnboardingStatus) {
+    const data = _bootstrapOnboardingStatus
+    _bootstrapOnboardingStatus = null
+    return { ok: true, data } as const
+  }
+  const result = await backendRequest<OnboardingStatus>('getOnboardingStatus', {}, 'GET', '/onboarding/status')
+  if (result.ok && result.data.needsOnboarding && onboardingDismissedLocally()) {
+    return { ...result, data: { ...result.data, needsOnboarding: false, skipped: true } }
+  }
+  return result
+}
+
+export async function skipOnboarding() {
+  const result = await backendRequest<OnboardingStatus>('skipOnboarding', {}, 'POST', '/onboarding/skip', {})
+  if (result.ok) dismissOnboardingLocally()
+  return result
 }
 
 // ── Entitlement (积分 / 额度) ──
@@ -369,11 +425,13 @@ export interface PlanRecord {
 
 export async function createPlan(body: CreatePlanBody) {
   const requestBody = withClientRequestId('plan', body)
-  return createRequestWithRetry<{ plan: PlanRecord; warnings: string[]; deduplicated?: boolean }>(
+  const result = await createRequestWithRetry<{ plan: PlanRecord; warnings: string[]; deduplicated?: boolean }>(
     'createPlan',
     requestBody,
     '/plans',
   )
+  if (result.ok) clearOnboardingDismissal()
+  return result
 }
 
 export async function getCurrentPlan() {
@@ -680,6 +738,15 @@ export async function aiPhotoEstimate(
     image: { mimeType: string; sizeBytes: number }
     mimeType: string
     imageSizeBytes: number
+    timing?: {
+      validationMs: number
+      quotaMs: number
+      aiMs: number
+      commitMs?: number
+      totalServerMs?: number
+      recoveredReservations?: number
+      deduplicated?: boolean
+    }
   }>('aiPhotoEstimate', payload, 'POST', '/ai/meal-photo-estimate', payload, {
     timeoutMs: AI_REQUEST_TIMEOUT_MS,
     retryCloud: false,

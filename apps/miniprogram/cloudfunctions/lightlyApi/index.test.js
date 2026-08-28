@@ -14,6 +14,21 @@ Module._load = function mockWxServerSdk(request, parent, isMain) {
         return {
           command: { aggregate: {} },
           serverDate() { return 'SERVER_DATE' },
+          collection() {
+            const query = {
+              where() { return query },
+              orderBy() { return query },
+              limit() { return query },
+              get() { return Promise.resolve({ data: [] }) },
+              doc(id) {
+                return {
+                  set() { return Promise.resolve({ stats: { created: 1 } }) },
+                  update() { return Promise.resolve({ stats: { updated: 1 }, id }) },
+                }
+              },
+            }
+            return query
+          },
         }
       },
     }
@@ -140,15 +155,18 @@ test('MiMo Chat request keeps the key server-side and uses JSON multimodal input
     })
     assert.equal(request.model, 'mimo-test')
     assert.equal(request.response_format.type, 'json_object')
+    assert.deepEqual(request.thinking, { type: 'disabled' })
     assert.equal(request.stream, false)
-    assert.equal(request.max_completion_tokens, 700)
+    assert.equal(request.max_completion_tokens, 340)
+    assert.match(request.messages[0].content, /1 至 5 项/)
+    assert.match(request.messages[0].content, /混合蔬菜/)
     assert.equal(request.messages[1].content[1].type, 'image_url')
     assert.match(request.messages[1].content[1].image_url.url, /^data:image\/jpeg;base64,/)
     assert.match(request.messages[0].content, /只返回 JSON/)
     assert.doesNotMatch(JSON.stringify(request), /server-only-test-key/)
 
     const textRequest = helpers.buildMiMoChatBody({ description: '一碗米饭和两个鸡蛋' })
-    assert.equal(textRequest.max_completion_tokens, 500)
+    assert.equal(textRequest.max_completion_tokens, 360)
     assert.equal(typeof textRequest.messages[1].content, 'string')
   } finally {
     if (previousKey == null) delete process.env.MIMO_API_KEY
@@ -259,6 +277,24 @@ test('only trusted WX context identity is accepted; tests inject it explicitly o
   const injected = await helpers.invokeWithTrustedOpenid({ action: 'authGuest', payload: { openid: 'payload-user' } }, 'trusted-user')
   assert.equal(injected.code, 0)
   assert.match(injected.data.userId, /^guest_trusted-user/)
+})
+
+test('onboarding is required only until a plan is created or the user skips it', () => {
+  assert.deepEqual(helpers.formatOnboardingStatus({}, false), {
+    needsOnboarding: true,
+    hasPlan: false,
+    skipped: false,
+  })
+  assert.deepEqual(helpers.formatOnboardingStatus({ onboardingSkippedAt: 'SERVER_DATE' }, false), {
+    needsOnboarding: false,
+    hasPlan: false,
+    skipped: true,
+  })
+  assert.deepEqual(helpers.formatOnboardingStatus({}, true), {
+    needsOnboarding: false,
+    hasPlan: true,
+    skipped: false,
+  })
 })
 
 test('future record dates and rewards are rejected before any database access', async () => {

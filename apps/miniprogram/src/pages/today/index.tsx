@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import {
   ensureAuthReady,
+  getOnboardingStatus,
   getCurrentPlan,
   getDailySummary,
   getEntitlement,
@@ -130,12 +131,17 @@ export default function TodayPage() {
   const recordActionRef = useRef<TodayRecordAction | null>(null)
   const loadSequence = useRef(0)
   const hasRenderedToday = useRef(false)
+  const onboardingCheckDone = useRef(false)
 
   useDidShow(() => {
     // Returning from the native camera/album also triggers didShow. Reloading here
     // would replace the ready page and unmount the pending recognition overlay.
     if (recordActionRef.current) return
-    loadFromApi()
+    if (!onboardingCheckDone.current) {
+      void checkFirstEntry()
+      return
+    }
+    void loadFromApi()
   })
 
   useDidHide(() => {
@@ -157,6 +163,26 @@ export default function TodayPage() {
   const openExercise = () => showRecordAction({ type: 'exercise' })
   const openWeight = () => showRecordAction({ type: 'weight' })
   const openPhoto = () => showRecordAction({ type: 'photo' })
+
+  async function checkFirstEntry() {
+    try {
+      const authed = await ensureAuthReady()
+      if (!authed) {
+        onboardingCheckDone.current = true
+        await loadFromApi()
+        return
+      }
+      const status = await getOnboardingStatus()
+      onboardingCheckDone.current = true
+      if (status.ok && status.data.needsOnboarding) {
+        await Taro.navigateTo({ url: '/pages/onboarding/index?source=first-entry' })
+        return
+      }
+    } catch {
+      onboardingCheckDone.current = true
+    }
+    await loadFromApi()
+  }
 
   async function loadFromApi() {
     const sequence = ++loadSequence.current

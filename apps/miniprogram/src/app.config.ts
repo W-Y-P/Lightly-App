@@ -11,7 +11,7 @@ export default defineAppConfig({
   window: {
     backgroundTextStyle: 'light',
     navigationBarBackgroundColor: '#f4f7f3',
-    navigationBarTitleText: '减脂助手',
+    navigationBarTitleText: '轻一点',
     navigationBarTextStyle: 'black',
     backgroundColor: '#f4f7f3',
   },

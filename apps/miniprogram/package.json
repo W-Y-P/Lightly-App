@@ -1,8 +1,8 @@
 {
   "name": "@fatloss/miniprogram",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "微信小程序前端 - 减脂助手",
+  "description": "微信小程序前端 - 轻一点",
   "templateInfo": {
     "name": "default",
     "typescript": true,

@@ -93,6 +93,15 @@ export default function ProfilePage() {
     void Taro.hideTabBar({ animation: false }).catch(() => {})
   }
 
+  const showTerms = () => {
+    Taro.showModal({
+      title: '用户协议要点',
+      content: '轻一点提供饮食、运动和体重记录及估算服务，结果仅供日常自我管理参考，不构成医疗诊断或治疗建议。请如实填写数据并自行确认 AI 识别结果；不得利用本服务上传违法或侵权内容。你可以随时在“我的”中删除账号与全部数据。继续使用即表示你理解并同意以上规则。',
+      showCancel: false,
+      confirmText: '我知道了',
+    })
+  }
+
   const closeFeedback = () => {
     if (feedbackSubmitting) return
     setFeedbackOpen(false)
@@ -127,8 +136,8 @@ export default function ProfilePage() {
 
   const showAbout = () => {
     Taro.showModal({
-      title: '关于减脂助手',
-      content: '减脂助手 v0.1.0\n用于记录饮食、体重与活动，并根据你的目标提供日常参考。健康数据仅供自我管理，不替代医疗建议。',
+      title: '关于轻一点',
+      content: '轻一点 v1.0.0\n用于记录饮食、体重与活动，并根据你的目标提供日常参考。健康数据仅供自我管理，不替代医疗建议。',
       showCancel: false,
       confirmText: '知道了',
     })
@@ -269,6 +278,13 @@ export default function ProfilePage() {
             </View>
             <Text className='profile-menu-arrow'>›</Text>
           </View>
+          <View className='profile-menu-item' onClick={showTerms}>
+            <View className='profile-menu-copy'>
+              <Text className='profile-menu-label'>用户协议</Text>
+              <Text className='profile-menu-desc'>了解服务范围与使用规则</Text>
+            </View>
+            <Text className='profile-menu-arrow'>›</Text>
+          </View>
           <View className='profile-menu-item' onClick={showFeedback}>
             <View className='profile-menu-copy'>
               <Text className='profile-menu-label'>意见反馈</Text>
@@ -278,7 +294,7 @@ export default function ProfilePage() {
           </View>
           <View className='profile-menu-item' onClick={showAbout}>
             <View className='profile-menu-copy'>
-              <Text className='profile-menu-label'>关于减脂助手</Text>
+              <Text className='profile-menu-label'>关于轻一点</Text>
               <Text className='profile-menu-desc'>版本信息与健康提示</Text>
             </View>
             <Text className='profile-menu-arrow'>›</Text>
@@ -289,7 +305,7 @@ export default function ProfilePage() {
           <Text className='profile-delete-text'>{deleting ? '正在删除账号' : '删除账号与全部数据'}</Text>
         </View>
 
-        <Text className='profile-version'>减脂助手 v0.1.0</Text>
+        <Text className='profile-version'>轻一点 v1.0.0</Text>
         <View className='profile-bottom-spacer' />
       </View>
 

@@ -1,7 +1,7 @@
 {
   "miniprogramRoot": "dist/",
   "projectname": "miniprogram-1",
-  "description": "减脂助手微信小程序",
+  "description": "轻一点热量计算和体重管理微信小程序",
   "appid": "wxb53c58a019395d79",
   "libVersion": "3.6.6",
   "setting": {

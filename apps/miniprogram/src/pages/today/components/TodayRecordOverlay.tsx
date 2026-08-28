@@ -308,6 +308,7 @@ export default function TodayRecordOverlay({ action, onClose, onSaved }: TodayRe
         prepareMs: requestStartedAt - prepareStartedAt,
         requestMs: Date.now() - requestStartedAt,
         sizeBytes,
+        server: result.data.timing,
       })
       const items = result.data.items?.length ? result.data.items : result.data.estimate ? [{
         foodName: result.data.estimate.foodName,
